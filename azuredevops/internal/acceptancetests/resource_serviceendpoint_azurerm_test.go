@@ -1,7 +1,3 @@
-//go:build (all || resource_serviceendpoint_azurerm) && !exclude_serviceendpoints
-// +build all resource_serviceendpoint_azurerm
-// +build !exclude_serviceendpoints
-
 package acceptancetests
 
 import (
@@ -14,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -221,7 +217,10 @@ func TestAccServiceEndpointAzureRm_WorkloadFederation_Manual_CreateAndUpdate(t *
 	azureDevOpsOrgName := "terraform-provider-azuredevops"
 
 	if os.Getenv("AZDO_ORG_SERVICE_URL") != "" {
-		azureDevOpsOrgUrl, _ := url.Parse(os.Getenv("AZDO_ORG_SERVICE_URL"))
+		azureDevOpsOrgUrl, err := url.Parse(os.Getenv("AZDO_ORG_SERVICE_URL"))
+		if err != nil {
+			t.Fatal(err)
+		}
 		azureDevOpsOrgName = path.Base(azureDevOpsOrgUrl.Path)
 	}
 
@@ -359,4 +358,59 @@ func TestAccServiceEndpointAzureRm_ManagedServiceIdentity_CreateAndUpdate(t *tes
 			},
 		},
 	})
+}
+
+func TestAccServiceEndpointAzureRm_azureStack(t *testing.T) {
+	projectName := testutils.GenerateResourceName()
+	serviceEndpointName := testutils.GenerateResourceName()
+
+	tfNode := "azuredevops_serviceendpoint_azurerm.test"
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testutils.PreCheck(t, nil) },
+		Providers:    testutils.GetProviders(),
+		CheckDestroy: testutils.CheckServiceEndpointDestroyed("azuredevops_serviceendpoint_azurerm"),
+		Steps: []resource.TestStep{
+			{
+				Config: hclAzureRMServiceEndpointEnvironmentAzureStack(projectName, serviceEndpointName),
+				Check: resource.ComposeTestCheckFunc(
+					testutils.CheckServiceEndpointExistsWithName(tfNode, serviceEndpointName),
+					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
+					resource.TestCheckResourceAttrSet(tfNode, "azurerm_spn_tenantid"),
+					resource.TestCheckResourceAttrSet(tfNode, "azurerm_subscription_id"),
+					resource.TestCheckResourceAttrSet(tfNode, "azurerm_subscription_name"),
+					resource.TestCheckResourceAttrSet(tfNode, "server_url"),
+					resource.TestCheckResourceAttr(tfNode, "service_endpoint_name", serviceEndpointName),
+				),
+			},
+			{
+				ResourceName:            tfNode,
+				ImportStateIdFunc:       testutils.ComputeProjectQualifiedResourceImportID(tfNode),
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"credentials.0.serviceprincipalkey"},
+			},
+		},
+	})
+}
+
+func hclAzureRMServiceEndpointEnvironmentAzureStack(projectName, serviceEndpointName string) string {
+	return fmt.Sprintf(`
+resource "azuredevops_project" "test" {
+  name = "%s"
+}
+
+resource "azuredevops_serviceendpoint_azurerm" "test" {
+  project_id                = azuredevops_project.test.id
+  service_endpoint_name     = "%s"
+  environment               = "AzureStack"
+  server_url                = "https://www.azuredevops.com"
+  azurerm_spn_tenantid      = "00000000-0000-0000-0000-000000000000"
+  azurerm_subscription_id   = "00000000-0000-0000-0000-000000000000"
+  azurerm_subscription_name = "Test Sub"
+  credentials {
+    serviceprincipalid  = "00000000-0000-0000-0000-000000000000"
+    serviceprincipalkey = "00000000-0000-0000-0000-000000000000"
+  }
+}
+`, projectName, serviceEndpointName)
 }

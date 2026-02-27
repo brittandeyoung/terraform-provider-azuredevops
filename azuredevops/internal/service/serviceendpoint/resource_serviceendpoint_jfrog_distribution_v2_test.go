@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
@@ -17,11 +16,14 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var distributionV2TestServiceEndpointIDpassword = uuid.New()
-var distributionV2RandomServiceEndpointProjectIDpassword = uuid.New()
-var distributionV2TestServiceEndpointProjectIDpassword = &artifactoryRandomServiceEndpointProjectIDpassword
+var (
+	distributionV2TestServiceEndpointIDpassword          = uuid.New()
+	distributionV2RandomServiceEndpointProjectIDpassword = uuid.New()
+	distributionV2TestServiceEndpointProjectIDpassword   = &artifactoryRandomServiceEndpointProjectIDpassword
+)
 
 var distributionV2TestServiceEndpointPassword = serviceendpoint.ServiceEndpoint{
 	Authorization: &serviceendpoint.EndpointAuthorization{
@@ -48,9 +50,11 @@ var distributionV2TestServiceEndpointPassword = serviceendpoint.ServiceEndpoint{
 	},
 }
 
-var distributionV2TestServiceEndpointID = uuid.New()
-var distributionV2RandomServiceEndpointProjectID = uuid.New()
-var distributionV2TestServiceEndpointProjectID = &artifactoryRandomServiceEndpointProjectID
+var (
+	distributionV2TestServiceEndpointID          = uuid.New()
+	distributionV2RandomServiceEndpointProjectID = uuid.New()
+	distributionV2TestServiceEndpointProjectID   = &artifactoryRandomServiceEndpointProjectID
+)
 
 var distributionV2TestServiceEndpoint = serviceendpoint.ServiceEndpoint{
 	Authorization: &serviceendpoint.EndpointAuthorization{
@@ -81,15 +85,17 @@ func testServiceEndpointdistributionV2_ExpandFlatten_Roundtrip(t *testing.T, ep 
 	for _, ep := range []*serviceendpoint.ServiceEndpoint{ep, ep} {
 
 		resourceData := schema.TestResourceDataRaw(t, ResourceServiceEndpointJFrogDistributionV2().Schema, nil)
-		flattenServiceEndpointArtifactory(resourceData, ep, id.String())
+		resourceData.Set("project_id", (*ep.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+		flattenServiceEndpointArtifactory(resourceData, ep)
 
-		serviceEndpointAfterRoundTrip, projectID, err := expandServiceEndpointJFrogDistributionV2(resourceData)
+		serviceEndpointAfterRoundTrip, err := expandServiceEndpointJFrogDistributionV2(resourceData)
 		require.Nil(t, err)
 		require.Equal(t, *ep, *serviceEndpointAfterRoundTrip)
-		require.Equal(t, id, projectID)
+		require.Equal(t, id, (*serviceEndpointAfterRoundTrip.ServiceEndpointProjectReferences)[0].ProjectReference.Id)
 
 	}
 }
+
 func TestServiceEndpointdistributionV2_ExpandFlatten_RoundtripPassword(t *testing.T) {
 	testServiceEndpointdistributionV2_ExpandFlatten_Roundtrip(t, &distributionV2TestServiceEndpointPassword, distributionV2TestServiceEndpointProjectIDpassword)
 }
@@ -105,7 +111,8 @@ func testServiceEndpointdistributionV2_Create_DoesNotSwallowError(t *testing.T, 
 
 	r := ResourceServiceEndpointJFrogDistributionV2()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointArtifactory(resourceData, ep, id.String())
+	resourceData.Set("project_id", (*ep.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointArtifactory(resourceData, ep)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -120,9 +127,11 @@ func testServiceEndpointdistributionV2_Create_DoesNotSwallowError(t *testing.T, 
 	err := r.Create(resourceData, clients)
 	require.Contains(t, err.Error(), "CreateServiceEndpoint() Failed")
 }
+
 func TestServiceEndpointdistributionV2_Create_DoesNotSwallowErrorToken(t *testing.T) {
 	testServiceEndpointdistributionV2_Create_DoesNotSwallowError(t, &distributionV2TestServiceEndpoint, distributionV2TestServiceEndpointProjectID)
 }
+
 func TestServiceEndpointdistributionV2_Create_DoesNotSwallowErrorPassword(t *testing.T) {
 	testServiceEndpointdistributionV2_Create_DoesNotSwallowError(t, &distributionV2TestServiceEndpointPassword, distributionV2TestServiceEndpointProjectIDpassword)
 }
@@ -134,7 +143,8 @@ func testServiceEndpointdistributionV2_Read_DoesNotSwallowError(t *testing.T, ep
 
 	r := ResourceServiceEndpointJFrogDistributionV2()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointArtifactory(resourceData, ep, id.String())
+	resourceData.Set("project_id", (*ep.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointArtifactory(resourceData, ep)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -152,9 +162,11 @@ func testServiceEndpointdistributionV2_Read_DoesNotSwallowError(t *testing.T, ep
 	err := r.Read(resourceData, clients)
 	require.Contains(t, err.Error(), "GetServiceEndpoint() Failed")
 }
+
 func TestServiceEndpointdistributionV2_Read_DoesNotSwallowErrorToken(t *testing.T) {
 	testServiceEndpointdistributionV2_Read_DoesNotSwallowError(t, &distributionV2TestServiceEndpoint, distributionV2TestServiceEndpointProjectID)
 }
+
 func TestServiceEndpointdistributionV2_Read_DoesNotSwallowErrorPassword(t *testing.T) {
 	testServiceEndpointdistributionV2_Read_DoesNotSwallowError(t, &distributionV2TestServiceEndpointPassword, distributionV2TestServiceEndpointProjectIDpassword)
 }
@@ -166,7 +178,8 @@ func testServiceEndpointdistributionV2_Delete_DoesNotSwallowError(t *testing.T, 
 
 	r := ResourceServiceEndpointJFrogDistributionV2()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointArtifactory(resourceData, ep, id.String())
+	resourceData.Set("project_id", (*ep.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointArtifactory(resourceData, ep)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -186,42 +199,19 @@ func testServiceEndpointdistributionV2_Delete_DoesNotSwallowError(t *testing.T, 
 	err := r.Delete(resourceData, clients)
 	require.Contains(t, err.Error(), "DeleteServiceEndpoint() Failed")
 }
+
 func TestServiceEndpointdistributionV2_Delete_DoesNotSwallowErrorToken(t *testing.T) {
 	testServiceEndpointdistributionV2_Delete_DoesNotSwallowError(t, &distributionV2TestServiceEndpoint, distributionV2TestServiceEndpointProjectID)
 }
+
 func TestServiceEndpointdistributionV2_Delete_DoesNotSwallowErrorPassword(t *testing.T) {
 	testServiceEndpointdistributionV2_Delete_DoesNotSwallowError(t, &distributionV2TestServiceEndpointPassword, distributionV2TestServiceEndpointProjectIDpassword)
 }
 
-// verifies that if an error is produced on an update, it is not swallowed
-func testServiceEndpointdistributionV2_Update_DoesNotSwallowError(t *testing.T, ep *serviceendpoint.ServiceEndpoint, id *uuid.UUID) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	r := ResourceServiceEndpointJFrogDistributionV2()
-	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointArtifactory(resourceData, ep, id.String())
-
-	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
-	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
-
-	expectedArgs := serviceendpoint.UpdateServiceEndpointArgs{
-		Endpoint:   ep,
-		EndpointId: ep.Id,
-	}
-
-	buildClient.
-		EXPECT().
-		UpdateServiceEndpoint(clients.Ctx, expectedArgs).
-		Return(nil, errors.New("UpdateServiceEndpoint() Failed")).
-		Times(1)
-
-	err := r.Update(resourceData, clients)
-	require.Contains(t, err.Error(), "UpdateServiceEndpoint() Failed")
-}
 func TestServiceEndpointdistributionV2_Update_DoesNotSwallowErrorToken(t *testing.T) {
 	testServiceEndpointdistributionV2_Delete_DoesNotSwallowError(t, &distributionV2TestServiceEndpoint, distributionV2TestServiceEndpointProjectID)
 }
+
 func TestServiceEndpointdistributionV2_Update_DoesNotSwallowErrorPassword(t *testing.T) {
 	testServiceEndpointdistributionV2_Delete_DoesNotSwallowError(t, &distributionV2TestServiceEndpointPassword, distributionV2TestServiceEndpointProjectIDpassword)
 }

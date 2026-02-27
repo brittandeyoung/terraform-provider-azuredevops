@@ -1,14 +1,10 @@
-//go:build (all || resource_serviceendpoint_generic_git) && !exclude_serviceendpoints
-// +build all resource_serviceendpoint_generic_git
-// +build !exclude_serviceendpoints
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -134,9 +130,9 @@ func TestAccServiceEndpointGenericGit_RequiresImportErrorStep(t *testing.T) {
 func hclSvcEndpointGenericGitResourceBasic(projectName string, serviceEndpointName string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_generic_git" "test" {
-	project_id            = azuredevops_project.project.id
-	service_endpoint_name = "%s"
-	repository_url        = "https://dev.azure.com/org/project/_git/repository"
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%s"
+  repository_url        = "https://dev.azure.com/org/project/_git/repository"
 }`, serviceEndpointName)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -146,13 +142,13 @@ resource "azuredevops_serviceendpoint_generic_git" "test" {
 func hclSvcEndpointGenericGitResourceComplete(projectName string, serviceEndpointName string, description string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_generic_git" "test" {
-	project_id              = azuredevops_project.project.id
-	service_endpoint_name   = "%s"
-	description             = "%s"
-	repository_url          = "https://dev.azure.com/org/project/_git/repository"
-	username                = "username"
-	password                = "password"
-	enable_pipelines_access = true
+  project_id              = azuredevops_project.project.id
+  service_endpoint_name   = "%s"
+  description             = "%s"
+  repository_url          = "https://dev.azure.com/org/project/_git/repository"
+  username                = "username"
+  password                = "password"
+  enable_pipelines_access = true
 }`, serviceEndpointName, description)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -162,13 +158,13 @@ resource "azuredevops_serviceendpoint_generic_git" "test" {
 func hclSvcEndpointGenericGitResourceUpdate(projectName string, serviceEndpointName string, description string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_generic_git" "test" {
-	project_id              = azuredevops_project.project.id
-	service_endpoint_name   = "%s"
-	description             = "%s"
-	repository_url          = "https://dev.azure.com/org/project/_git/repository"
-	username                = "username"
-	password                = "password"
-	enable_pipelines_access = false
+  project_id              = azuredevops_project.project.id
+  service_endpoint_name   = "%s"
+  description             = "%s"
+  repository_url          = "https://dev.azure.com/org/project/_git/repository"
+  username                = "username"
+  password                = "password"
+  enable_pipelines_access = false
 }`, serviceEndpointName, description)
 
 	projectResource := testutils.HclProjectResource(projectName)

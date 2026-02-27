@@ -7,12 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/tfhelper"
 	"gopkg.in/yaml.v3"
@@ -161,6 +159,11 @@ func ResourceServiceEndpointKubernetes() *schema.Resource {
 						DefaultFunc:  schema.EnvDefaultFunc("AZDO_KUBERNETES_SERVICE_CONNECTION_SERVICE_ACCOUNT_TOKEN", nil),
 						Description:  "Secret token",
 					},
+					"accept_untrusted_certs": {
+						Type:     schema.TypeBool,
+						Optional: true,
+						Default:  false,
+					},
 				},
 			},
 		},
@@ -171,7 +174,7 @@ func ResourceServiceEndpointKubernetes() *schema.Resource {
 
 func resourceServiceEndpointKubernetesCreate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, _, err := expandServiceEndpointKubernetes(d)
+	serviceEndpoint, err := expandServiceEndpointKubernetes(d)
 	if err != nil {
 		return fmt.Errorf(errMsgTfConfigRead, err)
 	}
@@ -193,25 +196,19 @@ func resourceServiceEndpointKubernetesRead(d *schema.ResourceData, m interface{}
 	}
 
 	serviceEndpoint, err := clients.ServiceEndpointClient.GetServiceEndpointDetails(clients.Ctx, *getArgs)
+
+	if isServiceEndpointDeleted(d, err, serviceEndpoint, getArgs) {
+		return nil
+	}
 	if err != nil {
-		if utils.ResponseWasNotFound(err) {
-			d.SetId("")
-			return nil
-		}
-		return fmt.Errorf(" looking up service endpoint given ID (%v) and project ID (%v): %v", getArgs.EndpointId, getArgs.Project, err)
+		return fmt.Errorf("looking up service endpoint given ID (%s) and project ID (%s): %v", getArgs.EndpointId, *getArgs.Project, err)
 	}
 
-	var projectID string
-	if serviceEndpoint != nil && serviceEndpoint.ServiceEndpointProjectReferences != nil {
-		if len(*serviceEndpoint.ServiceEndpointProjectReferences) > 0 {
-			projectReference := (*serviceEndpoint.ServiceEndpointProjectReferences)[0]
-			if projectReference.ProjectReference != nil && projectReference.ProjectReference.Id != nil {
-				projectID = projectReference.ProjectReference.Id.String()
-			}
-		}
+	if err = checkServiceConnection(serviceEndpoint); err != nil {
+		return err
 	}
 
-	doBaseFlattening(d, serviceEndpoint, projectID)
+	doBaseFlattening(d, serviceEndpoint)
 	if err = flattenServiceEndpointKubernetes(d, serviceEndpoint); err != nil {
 		return err
 	}
@@ -220,37 +217,31 @@ func resourceServiceEndpointKubernetesRead(d *schema.ResourceData, m interface{}
 
 func resourceServiceEndpointKubernetesUpdate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectID, err := expandServiceEndpointKubernetes(d)
+	serviceEndpoint, err := expandServiceEndpointKubernetes(d)
 	if err != nil {
 		return fmt.Errorf(errMsgTfConfigRead, err)
 	}
 
-	updatedServiceEndpoint, err := updateServiceEndpoint(clients, serviceEndpoint)
-
-	if err != nil {
-		return fmt.Errorf("Error updating service endpoint in Azure DevOps: %+v", err)
+	if _, err = updateServiceEndpoint(clients, serviceEndpoint); err != nil {
+		return fmt.Errorf("updating service endpoint in Azure DevOps: %+v", err)
 	}
 
-	doBaseFlattening(d, serviceEndpoint, projectID.String())
-	if err = flattenServiceEndpointKubernetes(d, updatedServiceEndpoint); err != nil {
-		return err
-	}
 	return resourceServiceEndpointKubernetesRead(d, m)
 }
 
 func resourceServiceEndpointKubernetesDelete(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectId, err := expandServiceEndpointKubernetes(d)
+	serviceEndpoint, err := expandServiceEndpointKubernetes(d)
 	if err != nil {
 		return fmt.Errorf(errMsgTfConfigRead, err)
 	}
 
-	return deleteServiceEndpoint(clients, projectId, serviceEndpoint.Id, d.Timeout(schema.TimeoutDelete))
+	return deleteServiceEndpoint(clients, serviceEndpoint, d.Timeout(schema.TimeoutDelete))
 }
 
 // Convert internal Terraform data structure to an AzDO data structure
-func expandServiceEndpointKubernetes(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, *uuid.UUID, error) {
-	serviceEndpoint, projectID := doBaseExpansion(d)
+func expandServiceEndpointKubernetes(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, error) {
+	serviceEndpoint := doBaseExpansion(d)
 	serviceEndpoint.Type = converter.String("kubernetes")
 	serviceEndpoint.Url = converter.String(d.Get("apiserver_url").(string))
 
@@ -286,10 +277,16 @@ func expandServiceEndpointKubernetes(d *schema.ResourceData) (*serviceendpoint.S
 			err := yaml.Unmarshal([]byte(kubeConfigYAML), &kubeConfigYAMLUnmarshalled)
 			if err != nil {
 				errResult := fmt.Errorf("kube_config contains an invalid YAML: %s", err)
-				return nil, nil, errResult
+				return nil, errResult
 			}
-			clusterContextInputList := kubeConfigYAMLUnmarshalled["contexts"].([]interface{})[0].(map[string]interface{})
-			clusterContextInput = clusterContextInputList["name"].(string)
+			if v, ok := kubeConfigYAMLUnmarshalled["contexts"]; ok {
+				if rawConfig, ok := v.([]interface{}); ok && len(rawConfig) > 0 {
+					clusterContextInputList := rawConfig[0].(map[string]interface{})
+					if name, exist := clusterContextInputList["name"]; exist {
+						clusterContextInput = name.(string)
+					}
+				}
+			}
 		}
 
 		serviceEndpoint.Authorization = &serviceendpoint.EndpointAuthorization{
@@ -317,11 +314,12 @@ func expandServiceEndpointKubernetes(d *schema.ResourceData) (*serviceendpoint.S
 		}
 
 		serviceEndpoint.Data = &map[string]string{
-			"authorizationType": "ServiceAccount",
+			"acceptUntrustedCerts": strconv.FormatBool(configuration["accept_untrusted_certs"].(bool)),
+			"authorizationType":    "ServiceAccount",
 		}
 	}
 
-	return serviceEndpoint, projectID, nil
+	return serviceEndpoint, nil
 }
 
 // Convert AzDO data structure to internal Terraform data structure
@@ -349,7 +347,10 @@ func flattenServiceEndpointKubernetes(d *schema.ResourceData, serviceEndpoint *s
 				clusterNameIndex = k + 1
 			}
 		}
-		clusterAdmin, _ := strconv.ParseBool((*serviceEndpoint.Data)["clusterAdmin"])
+		clusterAdmin, err := strconv.ParseBool((*serviceEndpoint.Data)["clusterAdmin"])
+		if err != nil {
+			return fmt.Errorf("Parsing `cluster_admin` value. Error: %+v", err)
+		}
 		configItems := map[string]interface{}{
 			"azure_environment": (*serviceEndpoint.Authorization.Parameters)["azureEnvironment"],
 			"tenant_id":         (*serviceEndpoint.Authorization.Parameters)["azureTenantId"],
@@ -366,36 +367,33 @@ func flattenServiceEndpointKubernetes(d *schema.ResourceData, serviceEndpoint *s
 		d.Set("azure_subscription", configItemList)
 	case "Kubeconfig":
 		var kubeconfig map[string]interface{}
-		kubeconfigSet := d.Get("kubeconfig").([]interface{})
-		configuration := kubeconfigSet[0].(map[string]interface{})
 
-		if len(configuration) > 0 {
-			kubeconfig = map[string]interface{}{}
+		kubeconfig = map[string]interface{}{}
 
-			if v, ok := configuration["kube_config"]; ok {
+		if kubeconfigSet := d.Get("kubeconfig").([]interface{}); len(kubeconfigSet) != 0 {
+			if v, ok := kubeconfigSet[0].(map[string]interface{})["kube_config"]; ok {
 				kubeconfig["kube_config"] = v.(string)
 			}
-
-			if serviceEndpoint.Data != nil {
-				if v, ok := (*serviceEndpoint.Data)["acceptUntrustedCerts"]; ok {
-					acceptUntrustedCerts, err := strconv.ParseBool(v)
-					if err != nil {
-						return fmt.Errorf(" failed to parse `accept_untrusted_certs`: %+v ", err)
-					}
-					kubeconfig["accept_untrusted_certs"] = acceptUntrustedCerts
-				}
-			}
-
-			if serviceEndpoint.Authorization != nil && serviceEndpoint.Authorization.Parameters != nil {
-				if v, ok := (*serviceEndpoint.Authorization.Parameters)["clusterContext"]; ok {
-					kubeconfig["cluster_context"] = v
-				}
-			}
-
-			kubeconfigList := make([]map[string]interface{}, 1)
-			kubeconfigList[0] = kubeconfig
-			d.Set("kubeconfig", kubeconfigList)
 		}
+
+		if serviceEndpoint.Data != nil {
+			if v, ok := (*serviceEndpoint.Data)["acceptUntrustedCerts"]; ok {
+				acceptUntrustedCerts, err := strconv.ParseBool(v)
+				if err != nil {
+					return fmt.Errorf("failed to parse `accept_untrusted_certs`: %+v ", err)
+				}
+				kubeconfig["accept_untrusted_certs"] = acceptUntrustedCerts
+			}
+		}
+
+		if serviceEndpoint.Authorization != nil && serviceEndpoint.Authorization.Parameters != nil {
+			if v, ok := (*serviceEndpoint.Authorization.Parameters)["clusterContext"]; ok {
+				kubeconfig["cluster_context"] = v
+			}
+		}
+		kubeconfigList := make([]map[string]interface{}, 1)
+		kubeconfigList[0] = kubeconfig
+		d.Set("kubeconfig", kubeconfigList)
 	case "ServiceAccount":
 		var serviceAccount map[string]interface{}
 		serviceAccountSet := d.Get("service_account").([]interface{})
@@ -410,6 +408,13 @@ func flattenServiceEndpointKubernetes(d *schema.ResourceData, serviceEndpoint *s
 			serviceAccount = map[string]interface{}{
 				"token":   configuration["token"].(string),
 				"ca_cert": configuration["ca_cert"].(string),
+			}
+			if v, ok := (*serviceEndpoint.Data)["acceptUntrustedCerts"]; ok {
+				acceptUntrustedCerts, err := strconv.ParseBool(v)
+				if err != nil {
+					return fmt.Errorf("Pparse `accept_untrusted_certs`. Error: %+v ", err)
+				}
+				serviceAccount["accept_untrusted_certs"] = acceptUntrustedCerts
 			}
 		}
 

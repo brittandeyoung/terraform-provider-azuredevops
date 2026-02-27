@@ -17,9 +17,9 @@ import (
 
 // verifies that the flatten/expand round trip path produces repeatable results
 func TestBranchPolicyMinReviewers_ExpandFlatten_Roundtrip(t *testing.T) {
-	var projectID = uuid.New().String()
-	var randomUUID = uuid.New()
-	var testPolicy = &policy.PolicyConfiguration{
+	projectID := uuid.New().String()
+	randomUUID := uuid.New()
+	testPolicy := &policy.PolicyConfiguration{
 		Id:         converter.Int(1),
 		IsEnabled:  converter.Bool(true),
 		IsBlocking: converter.Bool(true),
@@ -41,6 +41,7 @@ func TestBranchPolicyMinReviewers_ExpandFlatten_Roundtrip(t *testing.T) {
 			"requireVoteOnLastIteration":  true,
 			"resetRejectionsOnSourcePush": true,
 			"blockLastPusherVote":         true,
+			"requireVoteOnEachIteration":  true,
 		},
 	}
 

@@ -3,8 +3,8 @@ package testutils
 import (
 	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
@@ -22,7 +22,6 @@ func CheckProjectExists(expectedName string) resource.TestCheckFunc {
 		clients := GetProvider().Meta().(*client.AggregatedClient)
 		id := resource.Primary.ID
 		project, err := readProject(clients, id)
-
 		if err != nil {
 			return fmt.Errorf("Project with ID=%s cannot be found!. Error=%v", id, err)
 		}

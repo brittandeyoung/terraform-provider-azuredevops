@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
@@ -17,11 +16,14 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var incomingWebhookTestServiceEndpointID = uuid.New()
-var incomingWebhookRandomServiceEndpointProjectID = uuid.New()
-var incomingWebhookTestServiceEndpointProjectID = &incomingWebhookRandomServiceEndpointProjectID
+var (
+	incomingWebhookTestServiceEndpointID          = uuid.New()
+	incomingWebhookRandomServiceEndpointProjectID = uuid.New()
+	incomingWebhookTestServiceEndpointProjectID   = &incomingWebhookRandomServiceEndpointProjectID
+)
 
 var incomingWebhookTestServiceEndpoint = serviceendpoint.ServiceEndpoint{
 	Authorization: &serviceendpoint.EndpointAuthorization{
@@ -52,12 +54,13 @@ var incomingWebhookTestServiceEndpoint = serviceendpoint.ServiceEndpoint{
 // verifies that the flatten/expand round trip yields the same service endpoint
 func TestServiceEndpointIncomingWebhook_ExpandFlatten_Roundtrip(t *testing.T) {
 	resourceData := schema.TestResourceDataRaw(t, ResourceServiceEndpointIncomingWebhook().Schema, nil)
-	flattenServiceEndpointIncomingWebhook(resourceData, &incomingWebhookTestServiceEndpoint, incomingWebhookTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*incomingWebhookTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointIncomingWebhook(resourceData, &incomingWebhookTestServiceEndpoint)
 
-	serviceEndpointAfterRoundTrip, projectID, err := expandServiceEndpointIncomingWebhook(resourceData)
+	serviceEndpointAfterRoundTrip, err := expandServiceEndpointIncomingWebhook(resourceData)
 
 	require.Equal(t, incomingWebhookTestServiceEndpoint, *serviceEndpointAfterRoundTrip)
-	require.Equal(t, incomingWebhookTestServiceEndpointProjectID, projectID)
+	require.Equal(t, incomingWebhookTestServiceEndpointProjectID, (*serviceEndpointAfterRoundTrip.ServiceEndpointProjectReferences)[0].ProjectReference.Id)
 	require.Nil(t, err)
 }
 
@@ -68,7 +71,8 @@ func TestServiceEndpointIncomingWebhook_Create_DoesNotSwallowError(t *testing.T)
 
 	r := ResourceServiceEndpointIncomingWebhook()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointIncomingWebhook(resourceData, &incomingWebhookTestServiceEndpoint, incomingWebhookTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*incomingWebhookTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointIncomingWebhook(resourceData, &incomingWebhookTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -91,7 +95,8 @@ func TestServiceEndpointIncomingWebhook_Read_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointIncomingWebhook()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointIncomingWebhook(resourceData, &incomingWebhookTestServiceEndpoint, incomingWebhookTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*incomingWebhookTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointIncomingWebhook(resourceData, &incomingWebhookTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -117,7 +122,8 @@ func TestServiceEndpointIncomingWebhook_Delete_DoesNotSwallowError(t *testing.T)
 
 	r := ResourceServiceEndpointIncomingWebhook()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointIncomingWebhook(resourceData, &incomingWebhookTestServiceEndpoint, incomingWebhookTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*incomingWebhookTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointIncomingWebhook(resourceData, &incomingWebhookTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -145,7 +151,8 @@ func TestServiceEndpointIncomingWebhook_Update_DoesNotSwallowError(t *testing.T)
 
 	r := ResourceServiceEndpointIncomingWebhook()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointIncomingWebhook(resourceData, &incomingWebhookTestServiceEndpoint, incomingWebhookTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*incomingWebhookTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointIncomingWebhook(resourceData, &incomingWebhookTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}

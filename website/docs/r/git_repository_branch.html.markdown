@@ -44,20 +44,37 @@ resource "azuredevops_git_repository_branch" "example_from_commit_id" {
 
 The following arguments are supported:
 
-- `name` - (Required) The name of the branch in short format not prefixed with `refs/heads/`.
+* `name` - (Required) The name of the branch in short format not prefixed with `refs/heads/`.
 
-- `repository_id` - (Required) The ID of the repository the branch is created against.
+* `repository_id` - (Required) The ID of the repository the branch is created against.
 
-- `ref_branch` - (Optional) The reference to the source branch to create the branch from, in `<name>` or `refs/heads/<name>` format. Conflict with `ref_tag`, `ref_commit_id`.
+---
 
-- `ref_tag` - (Optional) The reference to the tag to create the branch from, in `<name>` or `refs/tags/<name>` format. Conflict with `ref_branch`, `ref_commit_id`.
+* `ref_branch` - (Optional) The reference to the source branch to create the branch from, in `<name>` or `refs/heads/<name>` format. Conflict with `ref_tag`, `ref_commit_id`.
 
-- `ref_commit_id` - (Optional) The commit object ID to create the branch from. Conflict with `ref_branch`, `ref_tag`.
+* `ref_tag` - (Optional) The reference to the tag to create the branch from, in `<name>` or `refs/tags/<name>` format. Conflict with `ref_branch`, `ref_commit_id`.
+
+* `ref_commit_id` - (Optional) The commit object ID to create the branch from. Conflict with `ref_branch`, `ref_tag`.
 
 ## Attributes Reference
 
 In addition to the Arguments listed above - the following Attributes are exported:
 
-- `id` - The ID of the Git Repository Branch, in the format `<repository_id>:<name>`.
+* `id` - The ID of the Git Repository Branch, in the format `<repository_id>:<name>`.
+* `last_commit_id` - The commit object ID of last commit on the branch.
 
-- `last_commit_id` - The commit object ID of last commit on the branch.
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 10 minutes) Used when creating the Git Branch.
+* `read` - (Defaults to 5 minute) Used when retrieving the Git Branch.
+* `delete` - (Defaults to 10 minutes) Used when deleting the Git Branch.
+
+## Import
+
+Azure DevOps Git Repository Branch can be imported using the `repository ID:branchName`.
+
+```sh
+terraform import azuredevops_git_repository_branch.example "00000000-0000-0000-0000-000000000000:main"
+```

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
@@ -17,6 +16,7 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 var (
@@ -51,18 +51,17 @@ var externalTfsTestServiceEndpoint = serviceendpoint.ServiceEndpoint{
 
 func TestServiceEndpointExternalTFS_ExpandFlatten_Roundtrip(t *testing.T) {
 	resourceData := schema.TestResourceDataRaw(t, ResourceServiceEndpointExternalTFS().Schema, nil)
+	resourceData.Set("project_id", (*externalTfsTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
 	configureExternalTfsAuthPersonal(resourceData)
 	flattenServiceEndpointExternalTFS(
 		resourceData,
-		&externalTfsTestServiceEndpoint,
-		externalTfsTestServiceEndpointProjectID.String(),
-	)
+		&externalTfsTestServiceEndpoint)
 
-	serviceEndpointAfterRoundTrip, projectID, err := expandServiceEndpointExternalTFS(resourceData)
+	serviceEndpointAfterRoundTrip, err := expandServiceEndpointExternalTFS(resourceData)
 
 	require.Nil(t, err)
 	require.Equal(t, externalTfsTestServiceEndpoint, *serviceEndpointAfterRoundTrip)
-	require.Equal(t, externalTfsTestServiceEndpointProjectID, projectID)
+	require.Equal(t, externalTfsTestServiceEndpointProjectID, (*serviceEndpointAfterRoundTrip.ServiceEndpointProjectReferences)[0].ProjectReference.Id)
 }
 
 func TestServiceEndpointExternalTFS_Create_DoesNotSwallowError(t *testing.T) {
@@ -71,12 +70,11 @@ func TestServiceEndpointExternalTFS_Create_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointExternalTFS()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
+	resourceData.Set("project_id", (*externalTfsTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
 	configureExternalTfsAuthPersonal(resourceData)
 	flattenServiceEndpointExternalTFS(
 		resourceData,
-		&externalTfsTestServiceEndpoint,
-		externalTfsTestServiceEndpointProjectID.String(),
-	)
+		&externalTfsTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -98,11 +96,10 @@ func TestServiceEndpointExternalTFS_Read_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointExternalTFS()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
+	resourceData.Set("project_id", (*externalTfsTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
 	flattenServiceEndpointExternalTFS(
 		resourceData,
-		&externalTfsTestServiceEndpoint,
-		externalTfsTestServiceEndpointProjectID.String(),
-	)
+		&externalTfsTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -127,11 +124,10 @@ func TestServiceEndpointExternalTFS_Delete_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointExternalTFS()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
+	resourceData.Set("project_id", (*externalTfsTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
 	flattenServiceEndpointExternalTFS(
 		resourceData,
-		&externalTfsTestServiceEndpoint,
-		externalTfsTestServiceEndpointProjectID.String(),
-	)
+		&externalTfsTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -159,12 +155,11 @@ func TestServiceEndpointExternalTFS_Update_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointExternalTFS()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
+	resourceData.Set("project_id", (*externalTfsTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
 	configureExternalTfsAuthPersonal(resourceData)
 	flattenServiceEndpointExternalTFS(
 		resourceData,
-		&externalTfsTestServiceEndpoint,
-		externalTfsTestServiceEndpointProjectID.String(),
-	)
+		&externalTfsTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}

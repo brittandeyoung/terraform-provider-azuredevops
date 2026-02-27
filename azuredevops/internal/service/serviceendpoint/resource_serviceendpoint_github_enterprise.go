@@ -6,12 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/tfhelper"
 )
@@ -34,10 +32,11 @@ func ResourceServiceEndpointGitHubEnterprise() *schema.Resource {
 	}
 	maps.Copy(r.Schema, map[string]*schema.Schema{
 		"auth_personal": {
-			Type:     schema.TypeSet,
-			Required: true,
-			MinItems: 1,
-			MaxItems: 1,
+			Type:          schema.TypeSet,
+			Optional:      true,
+			MinItems:      1,
+			MaxItems:      1,
+			ConflictsWith: []string{"auth_oauth"},
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
 					"personal_access_token": {
@@ -52,10 +51,26 @@ func ResourceServiceEndpointGitHubEnterprise() *schema.Resource {
 			},
 		},
 
+		"auth_oauth": {
+			Type:          schema.TypeSet,
+			Optional:      true,
+			MinItems:      1,
+			MaxItems:      1,
+			ConflictsWith: []string{"auth_personal"},
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"oauth_configuration_id": {
+						Type:     schema.TypeString,
+						Required: true,
+					},
+				},
+			},
+		},
+
 		"url": {
 			Type:         schema.TypeString,
+			Optional:     true,
 			ValidateFunc: validation.IsURLWithHTTPorHTTPS,
-			Required:     true,
 		},
 	})
 	return r
@@ -63,11 +78,7 @@ func ResourceServiceEndpointGitHubEnterprise() *schema.Resource {
 
 func resourceServiceEndpointGitHubEnterpriseCreate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, _, err := expandServiceEndpointGitHubEnterprise(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
-	}
-
+	serviceEndpoint := expandServiceEndpointGitHubEnterprise(d)
 	serviceEndPoint, err := createServiceEndpoint(d, clients, serviceEndpoint)
 	if err != nil {
 		return err
@@ -85,59 +96,64 @@ func resourceServiceEndpointGitHubEnterpriseRead(d *schema.ResourceData, m inter
 	}
 
 	serviceEndpoint, err := clients.ServiceEndpointClient.GetServiceEndpointDetails(clients.Ctx, *getArgs)
+	if isServiceEndpointDeleted(d, err, serviceEndpoint, getArgs) {
+		return nil
+	}
 	if err != nil {
-		if utils.ResponseWasNotFound(err) {
-			d.SetId("")
-			return nil
-		}
-		return fmt.Errorf(" looking up service endpoint given ID (%v) and project ID (%v): %v", getArgs.EndpointId, getArgs.Project, err)
+		return fmt.Errorf("looking up service endpoint given ID (%s) and project ID (%s): %v", getArgs.EndpointId, *getArgs.Project, err)
 	}
 
-	flattenServiceEndpointGitHubEnterprise(d, serviceEndpoint, (*serviceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	if err = checkServiceConnection(serviceEndpoint); err != nil {
+		return err
+	}
+	flattenServiceEndpointGitHubEnterprise(d, serviceEndpoint)
 	return nil
 }
 
 func resourceServiceEndpointGitHubEnterpriseUpdate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectID, err := expandServiceEndpointGitHubEnterprise(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
+	serviceEndpoint := expandServiceEndpointGitHubEnterprise(d)
+	if _, err := updateServiceEndpoint(clients, serviceEndpoint); err != nil {
+		return fmt.Errorf("Updating service endpoint in Azure DevOps: %+v", err)
 	}
 
-	updatedServiceEndpoint, err := updateServiceEndpoint(clients, serviceEndpoint)
-
-	if err != nil {
-		return fmt.Errorf("Error updating service endpoint in Azure DevOps: %+v", err)
-	}
-
-	flattenServiceEndpointGitHubEnterprise(d, updatedServiceEndpoint, projectID.String())
 	return resourceServiceEndpointGitHubEnterpriseRead(d, m)
 }
 
 func resourceServiceEndpointGitHubEnterpriseDelete(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectId, err := expandServiceEndpointGitHubEnterprise(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
-	}
-
-	return deleteServiceEndpoint(clients, projectId, serviceEndpoint.Id, d.Timeout(schema.TimeoutDelete))
+	serviceEndpoint := expandServiceEndpointGitHubEnterprise(d)
+	return deleteServiceEndpoint(clients, serviceEndpoint, d.Timeout(schema.TimeoutDelete))
 }
 
-func flattenServiceEndpointGitHubEnterprise(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint, projectID string) {
-	doBaseFlattening(d, serviceEndpoint, projectID)
+func flattenServiceEndpointGitHubEnterprise(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint) {
+	doBaseFlattening(d, serviceEndpoint)
 
-	if strings.EqualFold(*serviceEndpoint.Authorization.Scheme, "Token") {
-		authPersonalSet := d.Get("auth_personal").(*schema.Set).List()
-		authPersonal := flattenAuthPersonGithubEnterprise(d, authPersonalSet)
-		if authPersonal != nil {
-			d.Set("auth_personal", authPersonal)
+	if serviceEndpoint != nil {
+		if serviceEndpoint.Authorization != nil && serviceEndpoint.Authorization.Scheme != nil {
+			if strings.EqualFold(*serviceEndpoint.Authorization.Scheme, "Token") {
+				authPersonalSet := d.Get("auth_personal").(*schema.Set).List()
+				authPersonal := flattenAuthPersonGithubEnterprise(authPersonalSet)
+				if authPersonal != nil {
+					d.Set("auth_personal", authPersonal)
+				}
+			}
+		}
+		if strings.EqualFold(*serviceEndpoint.Authorization.Scheme, "OAuth") {
+			d.Set("auth_oauth", &[]map[string]interface{}{
+				{
+					"oauth_configuration_id": (*serviceEndpoint.Authorization.Parameters)["ConfigurationId"],
+				},
+			})
+		}
+
+		if serviceEndpoint.Url != nil {
+			d.Set("url", *serviceEndpoint.Url)
 		}
 	}
-	d.Set("url", *serviceEndpoint.Url)
 }
 
-func flattenAuthPersonGithubEnterprise(d *schema.ResourceData, authPersonalSet []interface{}) []interface{} {
+func flattenAuthPersonGithubEnterprise(authPersonalSet []interface{}) []interface{} {
 	if len(authPersonalSet) == 1 {
 		if authPersonal, ok := authPersonalSet[0].(map[string]interface{}); ok {
 			return []interface{}{authPersonal}
@@ -147,8 +163,8 @@ func flattenAuthPersonGithubEnterprise(d *schema.ResourceData, authPersonalSet [
 }
 
 // Convert internal Terraform data structure to an AzDO data structure
-func expandServiceEndpointGitHubEnterprise(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, *uuid.UUID, error) {
-	serviceEndpoint, projectID := doBaseExpansion(d)
+func expandServiceEndpointGitHubEnterprise(d *schema.ResourceData) *serviceendpoint.ServiceEndpoint {
+	serviceEndpoint := doBaseExpansion(d)
 
 	serviceEndpoint.Type = converter.String("githubenterprise")
 
@@ -163,18 +179,31 @@ func expandServiceEndpointGitHubEnterprise(d *schema.ResourceData) (*serviceendp
 		parameters = expandAuthPersonalSetGithubEnterprise(config.(*schema.Set))
 	}
 
+	if config, ok := d.GetOk("auth_oauth"); ok {
+		scheme = "OAuth2"
+		parameters = expandAuthOauthSetGithubEnterprise(config.(*schema.Set))
+	}
+
 	serviceEndpoint.Authorization = &serviceendpoint.EndpointAuthorization{
 		Parameters: &parameters,
 		Scheme:     &scheme,
 	}
 
-	return serviceEndpoint, projectID, nil
+	return serviceEndpoint
 }
 
 func expandAuthPersonalSetGithubEnterprise(d *schema.Set) map[string]string {
 	authPerson := make(map[string]string)
-	val := d.List()[0].(map[string]interface{}) //auth_personal only have one map configure structure
+	val := d.List()[0].(map[string]interface{}) // auth_personal only have one map configure structure
 
 	authPerson["apitoken"] = val["personal_access_token"].(string)
 	return authPerson
+}
+
+func expandAuthOauthSetGithubEnterprise(d *schema.Set) map[string]string {
+	authConfig := make(map[string]string)
+	val := d.List()[0].(map[string]interface{})
+	authConfig["ConfigurationId"] = val["oauth_configuration_id"].(string)
+	authConfig["AccessToken"] = ""
+	return authConfig
 }

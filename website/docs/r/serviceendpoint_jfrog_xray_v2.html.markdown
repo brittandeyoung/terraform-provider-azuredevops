@@ -2,12 +2,12 @@
 layout: "azuredevops"
 page_title: "AzureDevops: azuredevops_serviceendpoint_jfrog_xray_v2"
 description: |-
-  Manages a JFrog XRay V2 server endpoint within an Azure DevOps organization.
+  Manages a JFrog XRay V2 service endpoint within an Azure DevOps organization.
 ---
 
 # azuredevops_serviceendpoint_jfrog_xray_v2
 
-Manages an JFrog XRay V2 server endpoint within an Azure DevOps organization. 
+Manages an JFrog XRay V2 service endpoint within an Azure DevOps organization. 
 
 ~> **Note:** Using this service endpoint requires you to first install [JFrog Extension](https://marketplace.visualstudio.com/items?itemName=JFrog.jfrog-azure-devops-extension).
 
@@ -60,27 +60,34 @@ resource "azuredevops_serviceendpoint_jfrog_xray_v2" "example" {
 The following arguments are supported:
 
 * `project_id` - (Required) The ID of the project.
+
 * `service_endpoint_name` - (Required) The Service Endpoint name.
+
 * `url` - (Required) URL of the Artifactory server to connect with.
 
-~> **NOTE:** URL should not end in a slash character.
+    ~> **NOTE:** URL should not end in a slash character.
 
-* `authentication_token` - (Optional) A `authentication_token` block as documented below.
-* `authentication_basic` - (Optional) A `authentication_basic` block as documented below.
+---
+
+* `authentication_token` - (Optional) An `authentication_token` block as documented below.
+
+* `authentication_basic` - (Optional) An `authentication_basic` block as documented below.
+
 * `description` - (Optional) The Service Endpoint description.
 
 ---
 
-A `authentication_token` block supports the following:
+An `authentication_token` block supports the following:
 
-* `token` - Authentication Token generated through Artifactory.
+* `token` - (Required) Authentication Token generated through Artifactory.
 
 ---
 
-A `authentication_basic` block supports the following:
+An `authentication_basic` block supports the following:
 
-* `username` - Artifactory Username.
-* `password` - Artifactory Password.
+* `username` - (Required) The Username of the  Artifactory.
+
+* `password` - (Required) The Password of the Artifactory.
 
 ## Attributes Reference
 
@@ -94,8 +101,18 @@ The following attributes are exported:
 * [Azure DevOps Service Connections](https://docs.microsoft.com/en-us/azure/devops/pipelines/library/service-endpoints?view=azure-devops&tabs=yaml)
 * [Artifactory User Token](https://docs.artifactory.org/latest/user-guide/user-token/)
 
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 2 minutes) Used when creating the JFrog XRay V2 Service Endpoint.
+* `read` - (Defaults to 1 minute) Used when retrieving the JFrog XRay V2 Service Endpoint.
+* `update` - (Defaults to 2 minutes) Used when updating the JFrog XRay V2 Service Endpoint.
+* `delete` - (Defaults to 2 minutes) Used when deleting the JFrog XRay V2 Service Endpoint.
+
 ## Import
-Azure DevOps Service Endpoint JFrog XRay V2 can be imported using the **projectID/serviceEndpointID**, e.g.
+
+Azure DevOps JFrog Platform V2 Service Endpoint can be imported using the **projectID/serviceEndpointID**, e.g.
 
 ```sh
 terraform import azuredevops_serviceendpoint_jfrog_xray_v2.example 00000000-0000-0000-0000-000000000000/00000000-0000-0000-0000-000000000000

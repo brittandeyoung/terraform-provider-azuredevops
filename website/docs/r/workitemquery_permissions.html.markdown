@@ -129,21 +129,36 @@ resource "azuredevops_workitemquery_permissions" "example-sharedqueries-permissi
 The following arguments are supported:
 
 * `project_id` - (Required) The ID of the project to assign the permissions.
-* `path` - (Optional) Path to a query or folder beneath `Shared Queries`
+
 * `principal` - (Required) The **group** principal to assign the permissions.
-* `replace` - (Optional) Replace (`true`) or merge (`false`) the permissions. Default: `true`
+
 * `permissions` - (Required) the permissions to assign. The following permissions are available
 
-| Permissions              | Description                        |
-|--------------------------|------------------------------------|
-| Read                     | Read                               |
-| Contribute               | Contribute                         |
-| Delete                   | Delete                             |
-| ManagePermissions        | Manage Permissions                 |
+    | Permissions              | Description                        |
+    |--------------------------|------------------------------------|
+    | Read                     | Read                               |
+    | Contribute               | Contribute                         |
+    | Delete                   | Delete                             |
+    | ManagePermissions        | Manage Permissions                 |
+
+---
+
+* `path` - (Optional) Path to a query or folder beneath `Shared Queries`
+
+* `replace` - (Optional) Replace (`true`) or merge (`false`) the permissions. Defaults to `true`
 
 ## Relevant Links
 
 * [Azure DevOps Service REST API 7.0 - Security](https://docs.microsoft.com/en-us/rest/api/azure/devops/security/?view=azure-devops-rest-7.0)
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 10 minutes) Used when creating the Work Item Query Permissions.
+* `read` - (Defaults to 5 minute) Used when retrieving the Work Item Query Permissions.
+* `update` - (Defaults to 10 minutes) Used when updating the Work Item Query Permissions.
+* `delete` - (Defaults to 10 minutes) Used when deleting the Work Item Query Permissions.
 
 ## Import
 

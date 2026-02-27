@@ -12,7 +12,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
@@ -21,6 +20,7 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/testhelper"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 var prjListStateWellFormed = []core.TeamProjectReference{
@@ -65,27 +65,29 @@ var prjListStateWellFormed2 = []core.TeamProjectReference{
 	},
 }
 
-var duplicatePrjID *uuid.UUID = testhelper.CreateUUID()
-var prjListDoubleID = []core.TeamProjectReference{
-	{
-		Name:  converter.String("vsteam-0177"),
-		Id:    duplicatePrjID,
-		State: &core.ProjectStateValues.WellFormed,
-		Url:   nil,
-	},
-	{
-		Name:  converter.String("vsteam-0178"),
-		Id:    testhelper.CreateUUID(),
-		State: &core.ProjectStateValues.WellFormed,
-		Url:   nil,
-	},
-	{
-		Name:  converter.String("vsteam-0179"),
-		Id:    duplicatePrjID,
-		State: &core.ProjectStateValues.WellFormed,
-		Url:   nil,
-	},
-}
+var (
+	duplicatePrjID  *uuid.UUID = testhelper.CreateUUID()
+	prjListDoubleID            = []core.TeamProjectReference{
+		{
+			Name:  converter.String("vsteam-0177"),
+			Id:    duplicatePrjID,
+			State: &core.ProjectStateValues.WellFormed,
+			Url:   nil,
+		},
+		{
+			Name:  converter.String("vsteam-0178"),
+			Id:    testhelper.CreateUUID(),
+			State: &core.ProjectStateValues.WellFormed,
+			Url:   nil,
+		},
+		{
+			Name:  converter.String("vsteam-0179"),
+			Id:    duplicatePrjID,
+			State: &core.ProjectStateValues.WellFormed,
+			Url:   nil,
+		},
+	}
+)
 
 func TestDataSourceProjects_Read_TestFindProjectByName(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -320,7 +322,7 @@ func TestDataSourceProjects_Read_TestContinuationToken(t *testing.T) {
 		}, nil).
 		Times(1))
 
-	gomock.InOrder(calls...)
+	gomock.InOrder(testhelper.UnpackArray(calls)...)
 
 	resourceData := schema.TestResourceDataRaw(t, DataProjects().Schema, nil)
 	err := dataSourceProjectsRead(clients.Ctx, resourceData, clients)

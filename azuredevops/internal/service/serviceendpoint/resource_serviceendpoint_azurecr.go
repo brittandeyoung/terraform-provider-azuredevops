@@ -6,12 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/tfhelper"
 )
@@ -79,6 +77,7 @@ func ResourceServiceEndpointAzureCR() *schema.Resource {
 					"serviceprincipalid": {
 						Type:        schema.TypeString,
 						Required:    true,
+						ForceNew:    true,
 						Description: "The service principal id which should be used.",
 					},
 				},
@@ -137,7 +136,7 @@ func ResourceServiceEndpointAzureCR() *schema.Resource {
 
 func resourceServiceEndpointAzureCRCreate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, _, err := expandServiceEndpointAzureCR(d)
+	serviceEndpoint, err := expandServiceEndpointAzureCR(d)
 	if err != nil {
 		return fmt.Errorf(errMsgTfConfigRead, err)
 	}
@@ -159,48 +158,47 @@ func resourceServiceEndpointAzureCRRead(d *schema.ResourceData, m interface{}) e
 	}
 
 	serviceEndpoint, err := clients.ServiceEndpointClient.GetServiceEndpointDetails(clients.Ctx, *getArgs)
+	if isServiceEndpointDeleted(d, err, serviceEndpoint, getArgs) {
+		return nil
+	}
 	if err != nil {
-		if utils.ResponseWasNotFound(err) {
-			d.SetId("")
-			return nil
-		}
-		return fmt.Errorf(" looking up service endpoint given ID (%v) and project ID (%v): %v", getArgs.EndpointId, getArgs.Project, err)
+		return fmt.Errorf("looking up service endpoint given ID (%s) and project ID (%s): %v", getArgs.EndpointId, *getArgs.Project, err)
 	}
 
-	flattenServiceEndpointAzureCR(d, serviceEndpoint, (*serviceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	if err = checkServiceConnection(serviceEndpoint); err != nil {
+		return err
+	}
+	flattenServiceEndpointAzureCR(d, serviceEndpoint)
 	return nil
 }
 
 func resourceServiceEndpointAzureCRUpdate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectID, err := expandServiceEndpointAzureCR(d)
+	serviceEndpoint, err := expandServiceEndpointAzureCR(d)
 	if err != nil {
 		return fmt.Errorf(errMsgTfConfigRead, err)
 	}
 
-	updatedServiceEndpoint, err := updateServiceEndpoint(clients, serviceEndpoint)
-
-	if err != nil {
-		return fmt.Errorf("Error updating service endpoint in Azure DevOps: %+v", err)
+	if _, err = updateServiceEndpoint(clients, serviceEndpoint); err != nil {
+		return fmt.Errorf("Updating service endpoint in Azure DevOps: %+v", err)
 	}
 
-	flattenServiceEndpointAzureCR(d, updatedServiceEndpoint, projectID.String())
 	return resourceServiceEndpointAzureCRRead(d, m)
 }
 
 func resourceServiceEndpointAzureCRDelete(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectId, err := expandServiceEndpointAzureCR(d)
+	serviceEndpoint, err := expandServiceEndpointAzureCR(d)
 	if err != nil {
 		return fmt.Errorf(errMsgTfConfigRead, err)
 	}
 
-	return deleteServiceEndpoint(clients, projectId, serviceEndpoint.Id, d.Timeout(schema.TimeoutDelete))
+	return deleteServiceEndpoint(clients, serviceEndpoint, d.Timeout(schema.TimeoutDelete))
 }
 
 // Convert internal Terraform data structure to an AzDO data structure
-func expandServiceEndpointAzureCR(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, *uuid.UUID, error) {
-	serviceEndpoint, projectID := doBaseExpansion(d)
+func expandServiceEndpointAzureCR(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, error) {
+	serviceEndpoint := doBaseExpansion(d)
 	serviceEndPointAuthenticationScheme := EndpointAuthenticationScheme(d.Get("service_endpoint_authentication_scheme").(string))
 
 	subscriptionID := d.Get("azurecr_subscription_id")
@@ -246,7 +244,7 @@ func expandServiceEndpointAzureCR(d *schema.ResourceData) (*serviceendpoint.Serv
 			}
 		}
 		if serviceEndpointCreationMode == Manual {
-			return nil, nil, fmt.Errorf("ServicePrincipal Manual EndpointCreationMode is not supported yet")
+			return nil, fmt.Errorf("ServicePrincipal Manual EndpointCreationMode is not supported yet")
 		}
 
 		serviceEndpoint.Data = &map[string]string{
@@ -260,12 +258,12 @@ func expandServiceEndpointAzureCR(d *schema.ResourceData) (*serviceendpoint.Serv
 			"azureSpnRoleAssignmentId": d.Get("az_spn_role_assignment_id").(string),
 		}
 	case ManagedServiceIdentity:
-		return nil, nil, fmt.Errorf("ManagedServiceIdentity AuthenticationScheme is not supported yet")
+		return nil, fmt.Errorf("ManagedServiceIdentity AuthenticationScheme is not supported yet")
 	case WorkloadIdentityFederation:
 		if serviceEndpointCreationMode == Automatic {
 			serviceEndpoint.Authorization = &serviceendpoint.EndpointAuthorization{
 				Parameters: &map[string]string{
-					"serviceprincipalid": "",
+					"serviceprincipalid": d.Get("service_principal_id").(string), // add the SPN ID back to update
 					"tenantId":           d.Get("azurecr_spn_tenantid").(string),
 					"loginServer":        loginServer,
 					"scope":              scope,
@@ -273,10 +271,11 @@ func expandServiceEndpointAzureCR(d *schema.ResourceData) (*serviceendpoint.Serv
 				Scheme: converter.String(string(serviceEndPointAuthenticationScheme)),
 			}
 		}
+
 		if serviceEndpointCreationMode == Manual {
 			servicePrincipalId := credentials["serviceprincipalid"].(string)
 			if servicePrincipalId == "" {
-				return nil, nil, fmt.Errorf("serviceprincipalid is required for WorkloadIdentityFederation")
+				return nil, fmt.Errorf("serviceprincipalid is required for WorkloadIdentityFederation")
 			}
 			serviceEndpoint.Authorization = &serviceendpoint.EndpointAuthorization{
 				Parameters: &map[string]string{
@@ -295,6 +294,11 @@ func expandServiceEndpointAzureCR(d *schema.ResourceData) (*serviceendpoint.Serv
 			"subscriptionId":   subscriptionID.(string),
 			"subscriptionName": d.Get("azurecr_subscription_name").(string),
 			"creationMode":     string(serviceEndpointCreationMode),
+
+			"appObjectId":              d.Get("app_object_id").(string),
+			"spnObjectId":              d.Get("spn_object_id").(string),
+			"azureSpnPermissions":      d.Get("az_spn_role_permissions").(string),
+			"azureSpnRoleAssignmentId": d.Get("az_spn_role_assignment_id").(string),
 		}
 	}
 
@@ -302,12 +306,12 @@ func expandServiceEndpointAzureCR(d *schema.ResourceData) (*serviceendpoint.Serv
 	azureContainerRegistryURL := fmt.Sprintf("https://%s", loginServer)
 	serviceEndpoint.Url = converter.String(azureContainerRegistryURL)
 
-	return serviceEndpoint, projectID, nil
+	return serviceEndpoint, nil
 }
 
 // Convert AzDO data structure to internal Terraform data structure
-func flattenServiceEndpointAzureCR(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint, projectID string) {
-	doBaseFlattening(d, serviceEndpoint, projectID)
+func flattenServiceEndpointAzureCR(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint) {
+	doBaseFlattening(d, serviceEndpoint)
 
 	serviceEndPointType := EndpointAuthenticationScheme(*serviceEndpoint.Authorization.Scheme)
 
@@ -323,38 +327,52 @@ func flattenServiceEndpointAzureCR(d *schema.ResourceData, serviceEndpoint *serv
 		d.Set("service_principal_id", (*serviceEndpoint.Authorization.Parameters)["serviceprincipalid"])
 
 		if scope, ok := (*serviceEndpoint.Authorization.Parameters)["scope"]; ok {
-			s := strings.SplitN(scope, "/", -1)
+			s := strings.Split(scope, "/")
 			d.Set("resource_group", s[4])
 			d.Set("azurecr_name", s[8])
 		}
 	}
 
-	if (*serviceEndpoint.Data)["creationMode"] == "Manual" {
-		if _, ok := d.GetOk("credentials"); !ok {
-			credentials := make(map[string]interface{})
-			credentials["serviceprincipalid"] = (*serviceEndpoint.Authorization.Parameters)["serviceprincipalid"]
-			if serviceEndPointType == ServicePrincipal {
-				credentials["serviceprincipalkey"] = d.Get("credentials.0.serviceprincipalkey").(string)
+	if serviceEndpoint.Data != nil {
+		if (*serviceEndpoint.Data)["creationMode"] == "Manual" {
+			if _, ok := d.GetOk("credentials"); !ok {
+				credentials := make(map[string]interface{})
+				credentials["serviceprincipalid"] = (*serviceEndpoint.Authorization.Parameters)["serviceprincipalid"]
+				if serviceEndPointType == ServicePrincipal {
+					credentials["serviceprincipalkey"] = d.Get("credentials.0.serviceprincipalkey").(string)
+				}
+				d.Set("credentials", []interface{}{credentials})
 			}
-			d.Set("credentials", []interface{}{credentials})
 		}
-	}
 
-	if serviceEndPointType == WorkloadIdentityFederation {
-		if serviceEndpoint.Data != nil {
-			d.Set("azurecr_subscription_id", (*serviceEndpoint.Data)["subscriptionId"])
-			d.Set("azurecr_subscription_name", (*serviceEndpoint.Data)["subscriptionName"])
+		if serviceEndPointType == WorkloadIdentityFederation {
+			if serviceEndpoint.Data != nil {
+				d.Set("azurecr_subscription_id", (*serviceEndpoint.Data)["subscriptionId"])
+				d.Set("azurecr_subscription_name", (*serviceEndpoint.Data)["subscriptionName"])
+			}
 		}
-	}
 
-	if serviceEndPointType == ServicePrincipal {
-		if serviceEndpoint.Data != nil {
-			d.Set("azurecr_subscription_id", (*serviceEndpoint.Data)["subscriptionId"])
-			d.Set("azurecr_subscription_name", (*serviceEndpoint.Data)["subscriptionName"])
-			d.Set("app_object_id", (*serviceEndpoint.Data)["appObjectId"])
-			d.Set("spn_object_id", (*serviceEndpoint.Data)["spnObjectId"])
-			d.Set("az_spn_role_permissions", (*serviceEndpoint.Data)["azureSpnPermissions"])
-			d.Set("az_spn_role_assignment_id", (*serviceEndpoint.Data)["azureSpnRoleAssignmentId"])
+		if serviceEndPointType == ServicePrincipal {
+			if serviceEndpoint.Data != nil {
+				d.Set("azurecr_subscription_id", (*serviceEndpoint.Data)["subscriptionId"])
+				d.Set("azurecr_subscription_name", (*serviceEndpoint.Data)["subscriptionName"])
+			}
+		}
+
+		if v, ok := (*serviceEndpoint.Data)["appObjectId"]; ok {
+			d.Set("app_object_id", v)
+		}
+
+		if v, ok := (*serviceEndpoint.Data)["spnObjectId"]; ok {
+			d.Set("spn_object_id", v)
+		}
+
+		if v, ok := (*serviceEndpoint.Data)["azureSpnPermissions"]; ok {
+			d.Set("az_spn_role_permissions", v)
+		}
+
+		if v, ok := (*serviceEndpoint.Data)["azureSpnRoleAssignmentId"]; ok {
+			d.Set("az_spn_role_assignment_id", v)
 		}
 	}
 }

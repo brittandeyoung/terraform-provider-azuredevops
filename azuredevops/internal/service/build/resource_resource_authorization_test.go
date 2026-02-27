@@ -12,7 +12,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/build"
@@ -20,11 +19,14 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var projectID = "projectid"
-var definitionID = 666
-var endpointId = uuid.New()
+var (
+	projectID    = "projectid"
+	definitionID = 666
+	endpointId   = uuid.New()
+)
 
 var resourceReferenceAuthorized = build.DefinitionResourceReference{
 	Authorized: converter.Bool(true),

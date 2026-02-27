@@ -5,11 +5,9 @@ import (
 	"maps"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/tfhelper"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/validate"
@@ -57,11 +55,7 @@ func ResourceServiceEndpointNexus() *schema.Resource {
 
 func resourceServiceEndpointNexusCreate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, _, err := expandServiceEndpointNexus(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
-	}
-
+	serviceEndpoint := expandServiceEndpointNexus(d)
 	serviceEndPoint, err := createServiceEndpoint(d, clients, serviceEndpoint)
 	if err != nil {
 		return err
@@ -79,48 +73,39 @@ func resourceServiceEndpointNexusRead(d *schema.ResourceData, m interface{}) err
 	}
 
 	serviceEndpoint, err := clients.ServiceEndpointClient.GetServiceEndpointDetails(clients.Ctx, *getArgs)
+	if isServiceEndpointDeleted(d, err, serviceEndpoint, getArgs) {
+		return nil
+	}
 	if err != nil {
-		if utils.ResponseWasNotFound(err) {
-			d.SetId("")
-			return nil
-		}
-		return fmt.Errorf(" looking up service endpoint given ID (%v) and project ID (%v): %v", getArgs.EndpointId, getArgs.Project, err)
+		return fmt.Errorf("looking up service endpoint given ID (%s) and project ID (%s): %v", getArgs.EndpointId, *getArgs.Project, err)
 	}
 
-	flattenServiceEndpointNexus(d, serviceEndpoint, (*serviceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	if err = checkServiceConnection(serviceEndpoint); err != nil {
+		return err
+	}
+	flattenServiceEndpointNexus(d, serviceEndpoint)
 	return nil
 }
 
 func resourceServiceEndpointNexusUpdate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectID, err := expandServiceEndpointNexus(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
+	serviceEndpoint := expandServiceEndpointNexus(d)
+	if _, err := updateServiceEndpoint(clients, serviceEndpoint); err != nil {
+		return fmt.Errorf("Updating service endpoint in Azure DevOps: %+v", err)
 	}
 
-	updatedServiceEndpoint, err := updateServiceEndpoint(clients, serviceEndpoint)
-
-	if err != nil {
-		return fmt.Errorf("Error updating service endpoint in Azure DevOps: %+v", err)
-	}
-
-	flattenServiceEndpointNexus(d, updatedServiceEndpoint, projectID.String())
 	return resourceServiceEndpointNexusRead(d, m)
 }
 
 func resourceServiceEndpointNexusDelete(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectId, err := expandServiceEndpointNexus(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
-	}
-
-	return deleteServiceEndpoint(clients, projectId, serviceEndpoint.Id, d.Timeout(schema.TimeoutDelete))
+	serviceEndpoint := expandServiceEndpointNexus(d)
+	return deleteServiceEndpoint(clients, serviceEndpoint, d.Timeout(schema.TimeoutDelete))
 }
 
 // Convert internal Terraform data structure to an AzDO data structure
-func expandServiceEndpointNexus(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, *uuid.UUID, error) {
-	serviceEndpoint, projectID := doBaseExpansion(d)
+func expandServiceEndpointNexus(d *schema.ResourceData) *serviceendpoint.ServiceEndpoint {
+	serviceEndpoint := doBaseExpansion(d)
 	serviceEndpoint.Type = converter.String("NexusIqServiceConnection")
 	serviceEndpoint.Url = converter.String(d.Get("url").(string))
 
@@ -132,11 +117,11 @@ func expandServiceEndpointNexus(d *schema.ResourceData) (*serviceendpoint.Servic
 		Scheme: converter.String("UsernamePassword"),
 	}
 
-	return serviceEndpoint, projectID, nil
+	return serviceEndpoint
 }
 
 // Convert AzDO data structure to internal Terraform data structure
-func flattenServiceEndpointNexus(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint, projectID string) {
-	doBaseFlattening(d, serviceEndpoint, projectID)
+func flattenServiceEndpointNexus(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint) {
+	doBaseFlattening(d, serviceEndpoint)
 	d.Set("url", *serviceEndpoint.Url)
 }

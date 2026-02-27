@@ -1,14 +1,10 @@
-//go:build (all || data_sources || git || data_git_repositories) && (!exclude_data_sources || !exclude_git || !exclude_data_git_repositories)
-// +build all data_sources git data_git_repositories
-// +build !exclude_data_sources !exclude_git !exclude_data_git_repositories
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 

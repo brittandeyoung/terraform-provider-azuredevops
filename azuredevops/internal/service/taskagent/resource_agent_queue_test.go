@@ -9,19 +9,21 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/taskagent"
 	"github.com/microsoft/terraform-provider-azuredevops/azdosdkmocks"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var agentQueueProject = "project"
-var agentQueuePoolID = 100
-var agentQueuePoolName = "foo-pool"
-var agentQueueID = 200
+var (
+	agentQueueProject  = "project"
+	agentQueuePoolID   = 100
+	agentQueuePoolName = "foo-pool"
+	agentQueueID       = 200
+)
 
 // If the pool lookup fails, an error should be reported
 func TestAgentQueue_DoesNotSwallowPoolLookupErrors(t *testing.T) {

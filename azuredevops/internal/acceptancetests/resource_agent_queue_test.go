@@ -1,14 +1,10 @@
-//go:build (all || resource_agent_queue) && !exclude_resource_agent_queue
-// +build all resource_agent_queue
-// +build !exclude_resource_agent_queue
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 

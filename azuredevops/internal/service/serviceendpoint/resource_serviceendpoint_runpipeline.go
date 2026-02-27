@@ -5,12 +5,10 @@ import (
 	"maps"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/tfhelper"
 )
@@ -64,11 +62,7 @@ func ResourceServiceEndpointRunPipeline() *schema.Resource {
 
 func resourceServiceEndpointRunPipelineCreate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, _, err := expandServiceEndpointRunPipeline(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
-	}
-
+	serviceEndpoint := expandServiceEndpointRunPipeline(d)
 	serviceEndPoint, err := createServiceEndpoint(d, clients, serviceEndpoint)
 	if err != nil {
 		return err
@@ -86,48 +80,39 @@ func resourceServiceEndpointRunPipelineRead(d *schema.ResourceData, m interface{
 	}
 
 	serviceEndpoint, err := clients.ServiceEndpointClient.GetServiceEndpointDetails(clients.Ctx, *getArgs)
+	if isServiceEndpointDeleted(d, err, serviceEndpoint, getArgs) {
+		return nil
+	}
 	if err != nil {
-		if utils.ResponseWasNotFound(err) {
-			d.SetId("")
-			return nil
-		}
-		return fmt.Errorf(" looking up service endpoint given ID (%v) and project ID (%v): %v", getArgs.EndpointId, getArgs.Project, err)
+		return fmt.Errorf("looking up service endpoint given ID (%s) and project ID (%s): %v", getArgs.EndpointId, *getArgs.Project, err)
 	}
 
-	flattenServiceEndpointRunPipeline(d, serviceEndpoint, (*serviceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	if err = checkServiceConnection(serviceEndpoint); err != nil {
+		return err
+	}
+	flattenServiceEndpointRunPipeline(d, serviceEndpoint)
 	return nil
 }
 
 func resourceServiceEndpointRunPipelineUpdate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectID, err := expandServiceEndpointRunPipeline(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
+	serviceEndpoint := expandServiceEndpointRunPipeline(d)
+	if _, err := updateServiceEndpoint(clients, serviceEndpoint); err != nil {
+		return fmt.Errorf("Updating service endpoint in Azure DevOps: %+v", err)
 	}
 
-	updatedServiceEndpoint, err := updateServiceEndpoint(clients, serviceEndpoint)
-
-	if err != nil {
-		return fmt.Errorf("Error updating service endpoint in Azure DevOps: %+v", err)
-	}
-
-	flattenServiceEndpointRunPipeline(d, updatedServiceEndpoint, projectID.String())
 	return resourceServiceEndpointRunPipelineRead(d, m)
 }
 
 func resourceServiceEndpointRunPipelineDelete(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectId, err := expandServiceEndpointRunPipeline(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
-	}
-
-	return deleteServiceEndpoint(clients, projectId, serviceEndpoint.Id, d.Timeout(schema.TimeoutDelete))
+	serviceEndpoint := expandServiceEndpointRunPipeline(d)
+	return deleteServiceEndpoint(clients, serviceEndpoint, d.Timeout(schema.TimeoutDelete))
 }
 
 // Convert internal Terraform data structure to an AzDO data structure:
-func expandServiceEndpointRunPipeline(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, *uuid.UUID, error) {
-	serviceEndpoint, projectID := doBaseExpansion(d)
+func expandServiceEndpointRunPipeline(d *schema.ResourceData) *serviceendpoint.ServiceEndpoint {
+	serviceEndpoint := doBaseExpansion(d)
 	serviceEndpoint.Type = converter.String("azdoapi")
 
 	scheme := "Token"
@@ -146,21 +131,21 @@ func expandServiceEndpointRunPipeline(d *schema.ResourceData) (*serviceendpoint.
 	releaseUrl := fmt.Sprint("https://vsrm.dev.azure.com/", org)
 	data["releaseUrl"] = releaseUrl
 	serviceEndpoint.Data = &data
-	return serviceEndpoint, projectID, nil
+	return serviceEndpoint
 }
 
 func rpExpandAuthPersonalSet(d *schema.Set) map[string]string {
 	authPerson := make(map[string]string)
 	if len(d.List()) == 1 {
-		val := d.List()[0].(map[string]interface{}) //auth_personal block may have only one element inside
+		val := d.List()[0].(map[string]interface{}) // auth_personal block may have only one element inside
 		authPerson["apitoken"] = val["personal_access_token"].(string)
 	}
 	return authPerson
 }
 
 // Convert AzDO data structure to internal Terraform data structure
-func flattenServiceEndpointRunPipeline(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint, projectID string) {
-	doBaseFlattening(d, serviceEndpoint, projectID)
+func flattenServiceEndpointRunPipeline(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint) {
+	doBaseFlattening(d, serviceEndpoint)
 	authPersonalSet := d.Get("auth_personal").(*schema.Set).List()
 	if len(authPersonalSet) == 1 {
 		if authPersonal, ok := authPersonalSet[0].(map[string]interface{}); ok {

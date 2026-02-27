@@ -1,7 +1,3 @@
-//go:build (all || data_sources || data_serviceendpoint_azurecr) && (!exclude_data_sources || !exclude_data_serviceendpoint_azurecr)
-// +build all data_sources data_serviceendpoint_azurecr
-// +build !exclude_data_sources !exclude_data_serviceendpoint_azurecr
-
 package acceptancetests
 
 import (
@@ -9,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 

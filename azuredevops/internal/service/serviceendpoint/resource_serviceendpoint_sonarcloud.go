@@ -5,12 +5,10 @@ import (
 	"maps"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/tfhelper"
 )
@@ -46,11 +44,7 @@ func ResourceServiceEndpointSonarCloud() *schema.Resource {
 
 func resourceServiceEndpointSonarCloudCreate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, _, err := expandServiceEndpointSonarCloud(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
-	}
-
+	serviceEndpoint := expandServiceEndpointSonarCloud(d)
 	serviceEndPoint, err := createServiceEndpoint(d, clients, serviceEndpoint)
 	if err != nil {
 		return err
@@ -68,48 +62,39 @@ func resourceServiceEndpointSonarCloudRead(d *schema.ResourceData, m interface{}
 	}
 
 	serviceEndpoint, err := clients.ServiceEndpointClient.GetServiceEndpointDetails(clients.Ctx, *getArgs)
+	if isServiceEndpointDeleted(d, err, serviceEndpoint, getArgs) {
+		return nil
+	}
 	if err != nil {
-		if utils.ResponseWasNotFound(err) {
-			d.SetId("")
-			return nil
-		}
-		return fmt.Errorf(" looking up service endpoint given ID (%v) and project ID (%v): %v", getArgs.EndpointId, getArgs.Project, err)
+		return fmt.Errorf("looking up service endpoint given ID (%s) and project ID (%s): %v", getArgs.EndpointId, *getArgs.Project, err)
 	}
 
-	flattenServiceEndpointSonarCloud(d, serviceEndpoint, (*serviceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	if err = checkServiceConnection(serviceEndpoint); err != nil {
+		return err
+	}
+	flattenServiceEndpointSonarCloud(d, serviceEndpoint)
 	return nil
 }
 
 func resourceServiceEndpointSonarCloudUpdate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectID, err := expandServiceEndpointSonarCloud(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
+	serviceEndpoint := expandServiceEndpointSonarCloud(d)
+	if _, err := updateServiceEndpoint(clients, serviceEndpoint); err != nil {
+		return fmt.Errorf("Updating service endpoint in Azure DevOps: %+v", err)
 	}
 
-	updatedServiceEndpoint, err := updateServiceEndpoint(clients, serviceEndpoint)
-
-	if err != nil {
-		return fmt.Errorf("Error updating service endpoint in Azure DevOps: %+v", err)
-	}
-
-	flattenServiceEndpointSonarCloud(d, updatedServiceEndpoint, projectID.String())
 	return resourceServiceEndpointSonarCloudRead(d, m)
 }
 
 func resourceServiceEndpointSonarCloudDelete(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectId, err := expandServiceEndpointSonarCloud(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
-	}
-
-	return deleteServiceEndpoint(clients, projectId, serviceEndpoint.Id, d.Timeout(schema.TimeoutDelete))
+	serviceEndpoint := expandServiceEndpointSonarCloud(d)
+	return deleteServiceEndpoint(clients, serviceEndpoint, d.Timeout(schema.TimeoutDelete))
 }
 
 // Convert internal Terraform data structure to an AzDO data structure
-func expandServiceEndpointSonarCloud(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, *uuid.UUID, error) {
-	serviceEndpoint, projectID := doBaseExpansion(d)
+func expandServiceEndpointSonarCloud(d *schema.ResourceData) *serviceendpoint.ServiceEndpoint {
+	serviceEndpoint := doBaseExpansion(d)
 	serviceEndpoint.Authorization = &serviceendpoint.EndpointAuthorization{
 		Scheme: converter.String("Token"),
 		Parameters: &map[string]string{
@@ -118,10 +103,10 @@ func expandServiceEndpointSonarCloud(d *schema.ResourceData) (*serviceendpoint.S
 	}
 	serviceEndpoint.Type = converter.String("sonarcloud")
 	serviceEndpoint.Url = converter.String("https://sonarcloud.io")
-	return serviceEndpoint, projectID, nil
+	return serviceEndpoint
 }
 
 // Convert AzDO data structure to internal Terraform data structure
-func flattenServiceEndpointSonarCloud(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint, projectID string) {
-	doBaseFlattening(d, serviceEndpoint, projectID)
+func flattenServiceEndpointSonarCloud(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint) {
+	doBaseFlattening(d, serviceEndpoint)
 }

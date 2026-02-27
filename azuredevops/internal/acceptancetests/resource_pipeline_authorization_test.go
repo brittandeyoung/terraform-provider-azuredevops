@@ -1,14 +1,10 @@
-//go:build (all || pipeline_authorization) && !exclude_pipeline_authorization
-// +build all pipeline_authorization
-// +build !exclude_pipeline_authorization
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -476,6 +472,7 @@ resource "azuredevops_pipeline_authorization" "test" {
 }
 `, name)
 }
+
 func hclPipelineAuthEnvironment(name string) string {
 	return fmt.Sprintf(`
 resource "azuredevops_project" "test" {
@@ -544,6 +541,7 @@ resource "azuredevops_pipeline_authorization" "test" {
 }
 `, name)
 }
+
 func hclPipelineAuthVariableGroup(name string) string {
 	return fmt.Sprintf(`
 resource "azuredevops_project" "test" {
@@ -589,6 +587,7 @@ resource "azuredevops_pipeline_authorization" "test" {
 }
 `, name)
 }
+
 func hclAllPipelineAuthEndpoint(name string) string {
 	return fmt.Sprintf(`
 resource "azuredevops_project" "test" {
@@ -615,6 +614,7 @@ resource "azuredevops_pipeline_authorization" "test" {
 }
 `, name)
 }
+
 func hclPipelineAuthEndpoint(name string) string {
 	return fmt.Sprintf(`
 resource "azuredevops_project" "test" {
@@ -761,7 +761,7 @@ resource "azuredevops_pipeline_authorization" "test" {
   resource_id = data.azuredevops_git_repository.remote_repo.id
   type        = "repository"
 
-  pipeline_id = azuredevops_build_definition.test.id
+  pipeline_id         = azuredevops_build_definition.test.id
   pipeline_project_id = azuredevops_project.test.id
 }
 `, name)

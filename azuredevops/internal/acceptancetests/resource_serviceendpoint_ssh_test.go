@@ -1,14 +1,10 @@
-//go:build (all || resource_serviceendpoint_ssh) && !resource_serviceendpoint_ssh
-// +build all resource_serviceendpoint_ssh
-// +build !resource_serviceendpoint_ssh
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 

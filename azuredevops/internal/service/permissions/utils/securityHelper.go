@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 )
@@ -41,13 +41,14 @@ func SetPrincipalPermissions(d *schema.ResourceData, sn *SecurityNamespace, forc
 				SubjectDescriptor: principal.(string),
 				Permissions:       permissionMap,
 			},
-		}}
+		},
+	}
 
 	if err := sn.SetPrincipalPermissions(&setPermissions); err != nil {
 		return err
 	}
 
-	stateConf := &resource.StateChangeConf{
+	stateConf := &retry.StateChangeConf{
 		Pending: []string{"Waiting"},
 		Target:  []string{"Synched"},
 		Refresh: func() (interface{}, string, error) {
@@ -56,7 +57,7 @@ func SetPrincipalPermissions(d *schema.ResourceData, sn *SecurityNamespace, forc
 				principal.(string),
 			})
 			if err != nil {
-				return nil, "", fmt.Errorf("Error reading permissions for principal %s: %+v", err, principal.(string))
+				return nil, "", fmt.Errorf("Reading permissions for principal %s: %+v", err, principal.(string))
 			}
 			if len(*currentPermissions) != 1 {
 				return nil, "", fmt.Errorf("Received multiple permission sets for principal [%s] from backend. Expected single value.", principal.(string))
@@ -83,7 +84,7 @@ func SetPrincipalPermissions(d *schema.ResourceData, sn *SecurityNamespace, forc
 	}
 
 	if _, err := stateConf.WaitForState(); err != nil { //nolint:staticcheck
-		return fmt.Errorf(" waiting for permission update. %v ", err)
+		return fmt.Errorf("waiting for permission update. %v ", err)
 	}
 
 	d.SetId(fmt.Sprintf("%s/%s", sn.token, principal.(string)))
@@ -107,7 +108,7 @@ func GetPrincipalPermissions(d *schema.ResourceData, sn *SecurityNamespace) (*Pr
 	if err != nil {
 		return nil, err
 	}
-	if principalPermissions == nil || len(*principalPermissions) <= 0 {
+	if principalPermissions == nil || len(*principalPermissions) == 0 {
 		return nil, nil
 	}
 	if len(*principalPermissions) != 1 {

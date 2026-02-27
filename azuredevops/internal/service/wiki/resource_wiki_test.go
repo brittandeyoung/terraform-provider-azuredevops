@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/wiki"
@@ -17,11 +16,14 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var testWikiProjectID = uuid.New()
-var testWikiID = uuid.New()
-var testWikiType = wiki.WikiType("codeWiki")
+var (
+	testWikiProjectID = uuid.New()
+	testWikiID        = uuid.New()
+	testWikiType      = wiki.WikiType("codeWiki")
+)
 
 func TestWiki_Create_DoesNotSwallowError(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -91,7 +93,8 @@ func TestWiki_Delete_DoesNotSwallowError(t *testing.T) {
 
 	expectedArgs := wiki.DeleteWikiArgs{
 		WikiIdentifier: converter.String(testWikiID.String()),
-		Project:        converter.String(testWikiProjectID.String())}
+		Project:        converter.String(testWikiProjectID.String()),
+	}
 
 	wikiClient.
 		EXPECT().

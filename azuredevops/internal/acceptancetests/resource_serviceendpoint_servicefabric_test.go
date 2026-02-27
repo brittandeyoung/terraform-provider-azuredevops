@@ -1,13 +1,9 @@
-//go:build (all || resource_serviceendpoint_service_fabric) && !exclude_serviceendpoints
-// +build all resource_serviceendpoint_service_fabric
-// +build !exclude_serviceendpoints
-
 package acceptancetests
 
 import (
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 

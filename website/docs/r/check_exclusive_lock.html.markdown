@@ -90,7 +90,7 @@ The following arguments are supported:
 
 * `target_resource_id` - (Required) The ID of the resource being protected by the check. Changing this forces a new Exclusive Lock to be created.
 
-* `target_resource_type` - (Required) The type of resource being protected by the check. Valid values: `endpoint`, `environment`, `queue`, `repository`, `securefile`, `variablegroup`. Changing this forces a new Exclusive Lock to be created.
+* `target_resource_type` - (Required) The type of resource being protected by the check. Possible values are: `endpoint`, `environment`, `queue`, `repository`, `securefile`, `variablegroup`. Changing this forces a new Exclusive Lock to be created.
 
 ---
 
@@ -105,12 +105,12 @@ In addition to the Arguments listed above - the following Attributes are exporte
 
 ## Timeouts
 
-The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/docs/configuration/resources.html#timeouts) for certain actions:
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeout) for certain actions:
 
-* `create` - (Defaults to 2 minutes) Used when creating the Exclusive Lock.
-* `read` - (Defaults to 1 minute) Used when retrieving the Exclusive Lock.
-* `update` - (Defaults to 2 minutes) Used when updating the Exclusive Lock.
-* `delete` - (Defaults to 2 minutes) Used when deleting the Exclusive Lock.
+* `create` - (Defaults to 2 minutes) Used when creating the Exclusive Lock Check.
+* `read` - (Defaults to 1 minute) Used when retrieving the Exclusive Lock Check.
+* `update` - (Defaults to 2 minutes) Used when updating the Exclusive Lock Check.
+* `delete` - (Defaults to 2 minutes) Used when deleting the Exclusive Lock Check.
 
 ## Import
 

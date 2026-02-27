@@ -1,7 +1,3 @@
-//go:build (all || permissions || resource_workitemquery_permissions) && (!exclude_permissions || !resource_workitemquery_permissions)
-// +build all permissions resource_workitemquery_permissions
-// +build !exclude_permissions !resource_workitemquery_permissions
-
 package acceptancetests
 
 import (
@@ -9,7 +5,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/datahelper"
 )
@@ -166,17 +162,17 @@ func hclWorkItemQueryPermissions(projectName string, path string, permissions ma
 %s
 
 data "azuredevops_group" "project-administrators" {
-	project_id = azuredevops_project.project.id
-	name       = "Project administrators"
+  project_id = azuredevops_project.project.id
+  name       = "Project administrators"
 }
 
 resource "azuredevops_workitemquery_permissions" "wiq-permissions" {
-	project_id  = azuredevops_project.project.id
-	principal   = data.azuredevops_group.project-administrators.id
+  project_id = azuredevops_project.project.id
+  principal  = data.azuredevops_group.project-administrators.id
 	%s
-	permissions = {
+  permissions = {
 		%s
-	}
+  }
 }
 `, projectResource, szPath, szPermissions)
 }

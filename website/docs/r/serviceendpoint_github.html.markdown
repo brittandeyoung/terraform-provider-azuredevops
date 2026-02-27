@@ -70,37 +70,58 @@ resource "azuredevops_serviceendpoint_github" "example" {
 
 The following arguments are supported:
 
-- `project_id` - (Required) The ID of the project.
-- `service_endpoint_name` - (Required) The Service Endpoint name.
-- `description` - (Optional) The Service Endpoint description. Defaults to `Managed by Terraform`.
-- `auth_personal` - (Optional) An `auth_personal` block as documented below. Allows connecting using a personal access token.
-- `auth_oauth` - (Optional) An `auth_oauth` block as documented below. Allows connecting using an Oauth token.
+* `project_id` - (Required) The ID of the project.
 
-**NOTE: GitHub Apps can not be created or updated via terraform. You must install and configure the app on GitHub and then import it. You must also set the `description` to "" explicitly."**
+* `service_endpoint_name` - (Required) The Service Endpoint name.
+
+---
+
+* `auth_oauth` - (Optional) An `auth_oauth` block as documented below. Allows connecting using an Oauth token.
+
+* `auth_personal` - (Optional) An `auth_personal` block as documented below. Allows connecting using a personal access token.
+
+* `description` - (Optional) The Service Endpoint description. Defaults to `Managed by Terraform`.
+
+    ~>**NOTE:** GitHub Apps can not be created or updated via terraform. You must install and configure the app on GitHub and then import it. You must also set the `description` to "" explicitly."
+
+---
 
 `auth_personal` block supports the following:
 
-- `personal_access_token` - (Required) The Personal Access Token for GitHub.
+* `personal_access_token` - (Required) The Personal Access Token for GitHub.
 
-`auth_oauth` block supports the following:
+---
 
-- `oauth_configuration_id` - (Required) **NOTE: GitHub OAuth flow can not be performed via terraform. You must create this on Azure DevOps and then import it.** The OAuth Configuration ID.
+An `auth_oauth` block supports the following:
+
+* `oauth_configuration_id` - (Required) The OAuth Configuration ID.
+
+  ~>**NOTE:** GitHub OAuth flow can not be performed via terraform. You must create this on Azure DevOps and then import it.
 
 ## Attributes Reference
 
 The following attributes are exported:
 
-- `id` - The ID of the service endpoint.
-- `project_id` - The ID of the project.
-- `service_endpoint_name` - The Service Endpoint name.
+* `id` - The ID of the service endpoint.
+* `project_id` - The ID of the project.
+* `service_endpoint_name` - The Service Endpoint name.
 
 ## Relevant Links
 
 - [Azure DevOps Service REST API 7.0 - Service Endpoints](https://docs.microsoft.com/en-us/rest/api/azure/devops/serviceendpoint/endpoints?view=azure-devops-rest-7.0)
 
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 2 minutes) Used when creating the GitHub Service Endpoint.
+* `read` - (Defaults to 1 minute) Used when retrieving the GitHub Service Endpoint.
+* `update` - (Defaults to 2 minutes) Used when updating the GitHub Service Endpoint.
+* `delete` - (Defaults to 2 minutes) Used when deleting the GitHub Service Endpoint.
+
 ## Import
 
-Azure DevOps Service Endpoint GitHub can be imported using **projectID/serviceEndpointID** or **projectName/serviceEndpointID**
+Azure DevOps GitHub Service Endpoint can be imported using **projectID/serviceEndpointID** or **projectName/serviceEndpointID**
 
 ```sh
 terraform import azuredevops_serviceendpoint_github.example 00000000-0000-0000-0000-000000000000/00000000-0000-0000-0000-000000000000

@@ -10,19 +10,21 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/terraform-provider-azuredevops/azdosdkmocks"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/securityroles"
+	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/sdk/securityroles"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var SecurityRoleAssignmentIdentityID = uuid.New()
-var SecurityRoleAssignmentScope = "some:scope"
-var SecurityRoleAssignmentResourceID = "123456789"
-var SecurityRoleAssignmentRole = "Admin"
+var (
+	SecurityRoleAssignmentIdentityID = uuid.New()
+	SecurityRoleAssignmentScope      = "some:scope"
+	SecurityRoleAssignmentResourceID = "123456789"
+	SecurityRoleAssignmentRole       = "Admin"
+)
 
 // verifies that if an error is produced on create, the error is not swallowed
 

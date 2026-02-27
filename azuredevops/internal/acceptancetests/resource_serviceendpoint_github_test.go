@@ -1,14 +1,10 @@
-//go:build (all || resource_serviceendpoint_github) && !exclude_serviceendpoints
-// +build all resource_serviceendpoint_github
-// +build !exclude_serviceendpoints
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -95,6 +91,7 @@ func TestAccServiceEndpointGitHub_OauthBasic(t *testing.T) {
 		},
 	})
 }
+
 func TestAccServiceEndpointGitHub_OauthUpdate(t *testing.T) {
 	projectName := testutils.GenerateResourceName()
 	serviceEndpointNameFirst := testutils.GenerateResourceName()
@@ -180,11 +177,11 @@ func personTokenConfigBasic(projectName string, serviceEndpointName string) stri
 
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_github" "serviceendpoint" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%[1]s"
-	auth_personal {
-		personal_access_token= "test_token_basic"
-	}
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%[1]s"
+  auth_personal {
+    personal_access_token = "test_token_basic"
+  }
 }`, serviceEndpointName)
 
 	return fmt.Sprintf("%s\n%s", projectResource, serviceEndpointResource)
@@ -195,12 +192,12 @@ func personTokenConfigUpdate(projectName string, serviceEndpointName string, des
 
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_github" "serviceendpoint" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%[1]s"
-	auth_personal {
-		personal_access_token= "test_token_update"
-	}
-	description = "%[2]s"
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%[1]s"
+  auth_personal {
+    personal_access_token = "test_token_update"
+  }
+  description = "%[2]s"
 }`, serviceEndpointName, description)
 
 	return fmt.Sprintf("%s\n%s", projectResource, serviceEndpointResource)
@@ -210,11 +207,11 @@ func oauthConfigBasic(projectName string, serviceEndpointName string) string {
 	projectResource := testutils.HclProjectResource(projectName)
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_github" "serviceendpoint" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%[1]s"
-	auth_oauth {
-		oauth_configuration_id= "xxxx-xxxx-xxxx-xxxx-xxxx"
-	}
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%[1]s"
+  auth_oauth {
+    oauth_configuration_id = "xxxx-xxxx-xxxx-xxxx-xxxx"
+  }
 }`, serviceEndpointName)
 
 	return fmt.Sprintf("%s\n%s", projectResource, serviceEndpointResource)
@@ -224,12 +221,12 @@ func oauthConfigUpdate(projectName string, serviceEndpointName string, descripti
 	projectResource := testutils.HclProjectResource(projectName)
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_github" "serviceendpoint" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%[1]s"
-	auth_oauth {
-		oauth_configuration_id= "xxx-xxxx-xxxx-xxxx-xxxx"
-	}
-	description = "%[2]s"
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%[1]s"
+  auth_oauth {
+    oauth_configuration_id = "xxx-xxxx-xxxx-xxxx-xxxx"
+  }
+  description = "%[2]s"
 }`, serviceEndpointName, description)
 
 	return fmt.Sprintf("%s\n%s", projectResource, serviceEndpointResource)

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ahmetb/go-linq"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
@@ -76,7 +76,6 @@ func resourceTeamMembersCreate(d *schema.ResourceData, m interface{}) error {
 		TeamId:         converter.String(d.Get("team_id").(string)),
 		ExpandIdentity: converter.Bool(true),
 	})
-
 	if err != nil {
 		return err
 	}
@@ -98,7 +97,7 @@ func resourceTeamMembersCreate(d *schema.ResourceData, m interface{}) error {
 		}
 	}
 
-	stateConf := &resource.StateChangeConf{
+	stateConf := &retry.StateChangeConf{
 		Pending: []string{"Waiting"},
 		Target:  []string{"Synched"},
 		Refresh: func() (interface{}, string, error) {
@@ -106,7 +105,7 @@ func resourceTeamMembersCreate(d *schema.ResourceData, m interface{}) error {
 			state := "Waiting"
 			actualMemberships, err := getTeamMembers(clients, team)
 			if err != nil {
-				return nil, "", fmt.Errorf(" reading team memberships: %+v", err)
+				return nil, "", fmt.Errorf("reading team memberships: %+v", err)
 			}
 			if membersToAdd == nil || actualMemberships.Intersection(membersToAdd).Len() == membersToAdd.Len() {
 				state = "Synched"
@@ -123,7 +122,7 @@ func resourceTeamMembersCreate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	if _, err := stateConf.WaitForState(); err != nil { //nolint:staticcheck
-		return fmt.Errorf(" waiting for distribution of adding members. %v ", err)
+		return fmt.Errorf("waiting for distribution of adding members. %v ", err)
 	}
 
 	// The ID for this resource is meaningless so we can just assign a random ID
@@ -139,7 +138,6 @@ func resourceTeamMembersRead(d *schema.ResourceData, m interface{}) error {
 		TeamId:         converter.String(d.Get("team_id").(string)),
 		ExpandIdentity: converter.Bool(true),
 	})
-
 	if err != nil {
 		if utils.ResponseWasNotFound(err) {
 			d.SetId("")
@@ -180,7 +178,6 @@ func resourceTeamMembersUpdate(d *schema.ResourceData, m interface{}) error {
 		TeamId:         converter.String(d.Get("team_id").(string)),
 		ExpandIdentity: converter.Bool(true),
 	})
-
 	if err != nil {
 		return err
 	}
@@ -214,7 +211,7 @@ func resourceTeamMembersUpdate(d *schema.ResourceData, m interface{}) error {
 		}
 	}
 
-	stateConf := &resource.StateChangeConf{
+	stateConf := &retry.StateChangeConf{
 		Pending: []string{"Waiting"},
 		Target:  []string{"Synched"},
 		Refresh: func() (interface{}, string, error) {
@@ -241,7 +238,7 @@ func resourceTeamMembersUpdate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	if _, err = stateConf.WaitForState(); err != nil { //nolint:staticcheck
-		return fmt.Errorf(" waiting for distribution of member list update. %v ", err)
+		return fmt.Errorf("waiting for distribution of member list update. %v ", err)
 	}
 
 	return resourceTeamMembersRead(d, m)
@@ -258,7 +255,6 @@ func resourceTeamMembersDelete(d *schema.ResourceData, m interface{}) error {
 		TeamId:         converter.String(teamID),
 		ExpandIdentity: converter.Bool(false),
 	})
-
 	if err != nil {
 		return err
 	}
@@ -281,7 +277,7 @@ func resourceTeamMembersDelete(d *schema.ResourceData, m interface{}) error {
 		}
 	}
 
-	stateConf := &resource.StateChangeConf{
+	stateConf := &retry.StateChangeConf{
 		Pending: []string{"Waiting"},
 		Target:  []string{"Synched"},
 		Refresh: func() (interface{}, string, error) {
@@ -305,7 +301,7 @@ func resourceTeamMembersDelete(d *schema.ResourceData, m interface{}) error {
 	}
 
 	if _, err = stateConf.WaitForState(); err != nil { //nolint:staticcheck
-		return fmt.Errorf(" waiting for distribution of member list update. %v ", err)
+		return fmt.Errorf("waiting for distribution of member list update. %v ", err)
 	}
 
 	d.SetId("")

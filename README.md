@@ -64,7 +64,7 @@ If you're on Windows you'll also need:
 
 * [Git for Windows](https://git-scm.com/download/win)
 
-If you what to use the `makefile` build strategy on Windows it's required to install
+If you want to use the `makefile` build strategy on Windows it's required to install
 
 * [Make for Windows](http://gnuwin32.sourceforge.net/packages/make.htm)
 
@@ -224,5 +224,6 @@ The following Environment Variables must be set in your shell prior to running a
 - `AZDO_GITHUB_SERVICE_CONNECTION_PAT`
 - `AZDO_TEST_AAD_USER_EMAIL`
 - `AZDO_TEST_AAD_GROUP_ID`
+- `AZDO_TEST_AAD_SERVICE_PRINCIPAL_OBJECT_ID`
 
 **Note:** Acceptance tests create real resources in Azure DevOps which often cost money to run.

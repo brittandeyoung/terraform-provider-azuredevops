@@ -67,69 +67,16 @@ resource "azuredevops_project" "project" {
 }`, projectName)
 }
 
-// HclProjectResourceWithFeature HCL describing an AzDO project including internal feature setup
-func HclProjectResourceWithFeature(projectName string, featureStateTestplans string, featureStateArtifacts string) string {
-	if projectName == "" {
-		panic("Parameter: projectName cannot be empty")
-	}
-	if featureStateTestplans == "" {
-		panic("Parameter: featureStateTestplans cannot be empty")
-	}
-	if featureStateArtifacts == "" {
-		panic("Parameter: featureStateArtifacts cannot be empty")
+// HclServicePrincipleEntitlementResource HCL describing an AzDO service principal entitlement
+func HclServicePrincipleEntitlementResource(servicePrincipalObjectId string) string {
+	if servicePrincipalObjectId == "" {
+		panic("Parameter: servicePrincipalObjectId cannot be empty")
 	}
 	return fmt.Sprintf(`
-resource "azuredevops_project" "project" {
-	name       = "%s"
-	description        = "%s-description"
-	visibility         = "private"
-	version_control    = "Git"
-	work_item_template = "Agile"
-
-	features = {
-		"testplans" = "%s"
-		"artifacts" = "%s"
-	}
-}`, projectName, projectName, featureStateTestplans, featureStateArtifacts)
-}
-
-// HclProjectGitRepositoryImport HCL describing a AzDO git repositories
-func HclProjectGitRepositoryImport(gitRepoName string, projectName string) string {
-	azureGitRepoResource := fmt.Sprintf(`
-	resource "azuredevops_git_repository" "repository" {
-		project_id      = azuredevops_project.project.id
-		name            = "%s"
-		initialization {
-		   init_type = "Import"
-		   source_type = "Git"
-		   source_url = "https://github.com/microsoft/terraform-provider-azuredevops.git"
-		 }
-	}`, gitRepoName)
-	projectResource := HclProjectResource(projectName)
-	return fmt.Sprintf("%s\n%s", projectResource, azureGitRepoResource)
-}
-
-func HclProjectGitRepoImportPrivate(projectName, gitRepoName, gitImportRepoName, serviceEndpointName string) string {
-	gitRepoResource := HclGitRepoResource(projectName, gitRepoName, "Clean")
-	serviceEndpointResource := fmt.Sprintf(`
-	resource "azuredevops_serviceendpoint_generic_git" "serviceendpoint" {
-		project_id            = azuredevops_project.project.id
-		service_endpoint_name = "%s"
-		repository_url        = azuredevops_git_repository.repository.remote_url
-	}
-	`, serviceEndpointName)
-	importGitRepoResource := fmt.Sprintf(`
-	resource "azuredevops_git_repository" "import" {
-		project_id      = azuredevops_project.project.id
-		name            = "%s"
-		initialization {
-		   init_type             = "Import"
-		   source_type           = "Git"
-		   source_url            = azuredevops_git_repository.repository.remote_url
-		   service_connection_id = azuredevops_serviceendpoint_generic_git.serviceendpoint.id
-		 }
-	}`, gitImportRepoName)
-	return fmt.Sprintf("%s\n%s\n%s", gitRepoResource, serviceEndpointResource, importGitRepoResource)
+resource "azuredevops_service_principal_entitlement" "test" {
+	origin_id = "%[1]s"
+	origin	  = "aad"
+}`, servicePrincipalObjectId)
 }
 
 // HclSecurityroleDefinitionsDataSource HCL describing a data source for securityrole definitions
@@ -137,37 +84,7 @@ func HclSecurityroleDefinitionsDataSource() string {
 	return `
 data "azuredevops_securityrole_definitions" "definitions-list" {
 	scope = "distributedtask.environmentreferencerole"
-}
-`
-}
-
-// HclUserEntitlementResource HCL describing an AzDO UserEntitlement
-func HclUserEntitlementResource(principalName string) string {
-	return fmt.Sprintf(`
-resource "azuredevops_user_entitlement" "user" {
-	principal_name     = "%s"
-	account_license_type = "express"
-}`, principalName)
-}
-
-// HclGroupEntitlementResource HCL describing an AzDO GroupEntitlement
-func HclGroupEntitlementResource(displayName string) string {
-	return fmt.Sprintf(`
-resource "azuredevops_group_entitlement" "group" {
-	display_name = "%s"
-	account_license_type = "express"
-}`, displayName)
-}
-
-// HclGroupEntitlementResource HCL describing an AzDO GroupEntitlement linked
-// with Azure AD
-func HclGroupEntitlementResourceAAD(originId string) string {
-	return fmt.Sprintf(`
-resource "azuredevops_group_entitlement" "group_aad" {
-	origin_id = "%s"
-	origin = "aad"
-	account_license_type = "express"
-}`, originId)
+}`
 }
 
 // HclServiceEndpointGitHubResource HCL describing an AzDO service endpoint
@@ -190,8 +107,7 @@ func HclServiceEndpointGitHubDataSourceWithServiceEndpointID() string {
 data "azuredevops_serviceendpoint_github" "serviceendpoint" {
   project_id = azuredevops_project.project.id
   service_endpoint_id         = azuredevops_serviceendpoint_github.serviceendpoint.id
-}
-`
+}`
 }
 
 // HclServiceEndpointGitHubDataSourceWithServiceEndpointName HCL describing a data source for an AzDO service endpoint
@@ -265,85 +181,13 @@ resource "azuredevops_serviceendpoint_dockerregistry" "serviceendpoint" {
 	return fmt.Sprintf("%s\n%s", projectResource, serviceEndpointResource)
 }
 
-// HclServiceEndpointKubernetesResource HCL describing an AzDO kubernetes service endpoint
-func HclServiceEndpointKubernetesResource(projectName string, serviceEndpointName string, authorizationType string) string {
-	var serviceEndpointResource string
-	switch authorizationType {
-	case "AzureSubscription":
-		serviceEndpointResource = fmt.Sprintf(`
-resource "azuredevops_serviceendpoint_kubernetes" "serviceendpoint" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%s"
-	apiserver_url = "https://sample-kubernetes-cluster.hcp.westeurope.azmk8s.io"
-	authorization_type = "AzureSubscription"
-	azure_subscription {
-		subscription_id = "8a7aace5-66b1-66b1-66b1-8968a070edd2"
-		subscription_name = "Microsoft Azure DEMO"
-		tenant_id = "2e3a33f9-66b1-66b1-66b1-8968a070edd2"
-		resourcegroup_id = "sample-rg"
-		namespace = "default"
-		cluster_name = "sample-aks"
-	}
-}`, serviceEndpointName)
-	case "ServiceAccount":
-		serviceEndpointResource = fmt.Sprintf(`
-resource "azuredevops_serviceendpoint_kubernetes" "serviceendpoint" {
-	project_id            = azuredevops_project.project.id
-	service_endpoint_name = "%s"
-	apiserver_url         = "https://sample-kubernetes-cluster.hcp.westeurope.azmk8s.io"
-	authorization_type    = "ServiceAccount"
-	service_account {
-	  token   = "kubernetes_TEST_api_token"
-	  ca_cert = "kubernetes_TEST_ca_cert"
-	}
-}`, serviceEndpointName)
-	case "Kubeconfig":
-		serviceEndpointResource = fmt.Sprintf(`
-resource "azuredevops_serviceendpoint_kubernetes" "serviceendpoint" {
-	project_id            = azuredevops_project.project.id
-	service_endpoint_name = "%s"
-	apiserver_url         = "https://sample-kubernetes-cluster.hcp.westeurope.azmk8s.io"
-	authorization_type    = "Kubeconfig"
-	kubeconfig {
-		kube_config            = <<EOT
-								apiVersion: v1
-								clusters:
-								- cluster:
-									certificate-authority: fake-ca-file
-									server: https://1.2.3.4
-								name: development
-								contexts:
-								- context:
-									cluster: development
-									namespace: frontend
-									user: developer
-								name: dev-frontend
-								current-context: dev-frontend
-								kind: Config
-								preferences: {}
-								users:
-								- name: developer
-								user:
-									client-certificate: fake-cert-file
-									client-key: fake-key-file
-								EOT
-		accept_untrusted_certs = true
-		cluster_context        = "dev-frontend"
-	}
-}`, serviceEndpointName)
-	}
-	projectResource := HclProjectResource(projectName)
-	return fmt.Sprintf("%s\n%s", projectResource, serviceEndpointResource)
-}
-
 // HclServiceEndpointAzureRMDataSourceWithServiceEndpointID HCL describing a data source for an AzDO service endpoint
 func HclServiceEndpointAzureRMDataSourceWithServiceEndpointID() string {
 	return `
 data "azuredevops_serviceendpoint_azurerm" "serviceendpointrm" {
   project_id = azuredevops_project.project.id
   service_endpoint_id         = azuredevops_serviceendpoint_azurerm.serviceendpointrm.id
-}
-`
+}`
 }
 
 // HclServiceEndpointAzureRMDataSourceWithServiceEndpointName HCL describing a data source for an AzDO service endpoint
@@ -544,38 +388,6 @@ resource "azuredevops_variable_group" "vg" {
 		name = "key3"
 	}
 }`, variableGroupName, allowAccess)
-}
-
-// HclVariableGroupResourceWithProject HCL describing an AzDO variable group
-func HclVariableGroupResourceWithProject(projectName string, variableGroupName string, allowAccess bool) string {
-	variableGroupResource := HclVariableGroupResource(variableGroupName, allowAccess)
-	projectResource := HclProjectResource(projectName)
-	return fmt.Sprintf("%s\n%s", projectResource, variableGroupResource)
-}
-
-// HclVariableGroupResourceNoSecretsWithProject Similar to HclVariableGroupResource, but without a secret variable
-func HclVariableGroupResourceNoSecretsWithProject(projectName string, variableGroupName string, allowAccess bool) string {
-	variableGroupResource := fmt.Sprintf(`
-resource "azuredevops_variable_group" "vg" {
-	project_id  = azuredevops_project.project.id
-	name        = "%s"
-	description = "A sample variable group."
-	allow_access = %t
-	variable {
-		name      = "key1"
-		value     = "value1"
-	}
-}`, variableGroupName, allowAccess)
-
-	projectResource := HclProjectResource(projectName)
-	return fmt.Sprintf("%s\n%s", projectResource, variableGroupResource)
-}
-
-// HclVariableGroupResourceKeyVaultWithProject HCL describing an AzDO project and variable group with key vault
-func HclVariableGroupResourceKeyVaultWithProject(projectName string, variableGroupName string, allowAccess bool, keyVaultName string) string {
-	projectAndServiceEndpoint := HclServiceEndpointAzureRMResource(projectName, "test-service-connection", "e318e66b-ec4b-4dff-9124-41129b9d7150", "d9d210dd-f9f0-4176-afb8-a4df60e1ae72", "ServicePrincipal")
-
-	return fmt.Sprintf("%s\n%s", projectAndServiceEndpoint, HclVariableGroupResourceKeyVault(variableGroupName, allowAccess, keyVaultName))
 }
 
 // HclVariableGroupResourceKeyVault HCL describing an AzDO variable group with key vault
@@ -796,58 +608,6 @@ func HclBuildDefinitionWithVariables(varValue, secretVarValue, name string) stri
 	return fmt.Sprintf("%s\n%s", repoAndProjectResource, buildDefinitionResource)
 }
 
-// HclGroupMembershipResource full terraform stanza to standup a group membership
-func HclGroupMembershipResource(projectName, groupName, userPrincipalName string) string {
-	membershipDependenciesStanza := HclGroupMembershipDependencies(projectName, groupName, userPrincipalName)
-	membershipStanza := `
-resource "azuredevops_group_membership" "membership" {
-	group = data.azuredevops_group.group.descriptor
-	members = [azuredevops_user_entitlement.user.descriptor]
-}`
-
-	return membershipDependenciesStanza + "\n" + membershipStanza
-}
-
-// HclGroupMembershipDependencies all the dependencies needed to configure a group membership
-func HclGroupMembershipDependencies(projectName, groupName, userPrincipalName string) string {
-	return fmt.Sprintf(`
-resource "azuredevops_project" "project" {
-  name = "%s"
-}
-data "azuredevops_group" "group" {
-  project_id = azuredevops_project.project.id
-  name       = "%s"
-}
-resource "azuredevops_user_entitlement" "user" {
-  principal_name       = "%s"
-  account_license_type = "express"
-}
-
-output "group_descriptor" {
-  value = data.azuredevops_group.group.descriptor
-}
-output "user_descriptor" {
-  value = azuredevops_user_entitlement.user.descriptor
-}
-`, projectName, groupName, userPrincipalName)
-}
-
-// HclGroupResource HCL describing an AzDO group, if the projectName is empty, only a azuredevops_group instance is returned
-func HclGroupResource(groupResourceName, projectName, groupName string) string {
-	return fmt.Sprintf(`
-%s
-
-resource "azuredevops_group" "%s" {
-	scope        = azuredevops_project.project.id
-	display_name = "%s"
-}
-
-output "group_id_%s" {
-	value = azuredevops_group.%s.id
-}
-`, HclProjectResource(projectName), groupResourceName, groupName, groupResourceName, groupResourceName)
-}
-
 // HclResourceAuthorization HCL describing a resource authorization
 func HclResourceAuthorization(resourceID string, authorized bool) string {
 	return fmt.Sprintf(`
@@ -909,57 +669,6 @@ resource "azuredevops_build_folder" "test_folder" {
 	description = "%s"
 }
 `, projectResource, escapedBuildPath, description)
-}
-
-// HclGitPermissions creates HCl for testing to set permissions for a the all Git repositories of AzDO project
-func HclGitPermissions(projectName string) string {
-	projectResource := HclProjectResource(projectName)
-	return fmt.Sprintf(`
-%s
-
-data "azuredevops_group" "project-readers" {
-	project_id = azuredevops_project.project.id
-	name       = "Readers"
-}
-
-resource "azuredevops_git_permissions" "git-permissions" {
-	project_id  = azuredevops_project.project.id
-	principal   = data.azuredevops_group.project-readers.id
-	permissions = {
-		CreateRepository = "Deny"
-		DeleteRepository = "Deny"
-		RenameRepository = "NotSet"
-	}
-}
-`, projectResource)
-}
-
-// HclGitPermissionsForRepository creates HCl for testing to set permissions for a the all Git repositories of AzDO project
-func HclGitPermissionsForRepository(projectName string, gitRepoName string) string {
-	projectResource := HclProjectResource(projectName)
-	gitRepository := getGitRepoResource(gitRepoName, "clean")
-
-	return fmt.Sprintf(`
-%s
-
-%s
-
-data "azuredevops_group" "project-readers" {
-	project_id = azuredevops_project.project.project_id
-	name       = "Readers"
-}
-
-resource "azuredevops_git_permissions" "git-permissions" {
-	project_id    = azuredevops_project.project.project_id
-	repository_id = azuredevops_git_repository.gitrepo.id
-	principal     = data.azuredevops_group.project-readers.id
-	permissions   = {
-		CreateRepository = "Deny"
-		DeleteRepository = "Deny"
-		RenameRepository = "NotSet"
-	}
-}
-`, projectResource, gitRepository)
 }
 
 func HclTeamConfiguration(projectName string, teamName string, teamDescription string, teamAdministrators *[]string, teamMembers *[]string) string {
@@ -1056,26 +765,4 @@ resource "azuredevops_servicehook_storage_queue_pipelines" "test" {
   %s {}
 }
 `, projectResource, accountKey, queueName, eventType)
-}
-
-func getEnvironmentResourceKubernetes(resourceName string) string {
-	return fmt.Sprintf(`
-resource "azuredevops_environment_resource_kubernetes" "kubernetes" {
-	project_id          = azuredevops_project.project.id
-	environment_id      = azuredevops_environment.environment.id
-	service_endpoint_id = azuredevops_serviceendpoint_kubernetes.serviceendpoint.id
-	
-	name         = "%s"
-	namespace    = "default"
-	cluster_name = "example-aks"
-	tags         = ["tag1", "tag2"]
-}`, resourceName)
-}
-
-// HclEnvironmentResourceKubernetesResource HCL describing an AzDO environment kubernetes resource
-func HclEnvironmentResourceKubernetes(projectName string, environmentName string, serviceEndpointName string, resourceName string) string {
-	serviceEndpointResource := HclServiceEndpointKubernetesResource(projectName, serviceEndpointName, "ServiceAccount")
-	azureEnvironmentResource := getEnvironmentResource(environmentName)
-	environmentKubernetesResource := getEnvironmentResourceKubernetes(resourceName)
-	return fmt.Sprintf("%s\n%s\n%s", serviceEndpointResource, azureEnvironmentResource, environmentKubernetesResource)
 }

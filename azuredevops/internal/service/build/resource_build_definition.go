@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -54,7 +55,7 @@ func ResourceBuildDefinition() *schema.Resource {
 
 	branchFilter := &schema.Schema{
 		Type:     schema.TypeSet,
-		Optional: true,
+		Required: true,
 		MinItems: 1,
 		Elem: &schema.Resource{
 			Schema: filterSchema,
@@ -82,6 +83,11 @@ func ResourceBuildDefinition() *schema.Resource {
 			Delete: schema.DefaultTimeout(30 * time.Minute),
 		},
 		Schema: map[string]*schema.Schema{
+			"name": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotWhiteSpace,
+			},
 			"project_id": {
 				Type:     schema.TypeString,
 				Required: true,
@@ -90,11 +96,6 @@ func ResourceBuildDefinition() *schema.Resource {
 			"revision": {
 				Type:     schema.TypeInt,
 				Computed: true,
-			},
-			"name": {
-				Type:     schema.TypeString,
-				Optional: true,
-				Default:  "",
 			},
 			"path": {
 				Type:         schema.TypeString,
@@ -157,10 +158,6 @@ func ResourceBuildDefinition() *schema.Resource {
 				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
-						"yml_path": {
-							Type:     schema.TypeString,
-							Required: true,
-						},
 						"repo_id": {
 							Type:     schema.TypeString,
 							Required: true,
@@ -173,7 +170,12 @@ func ResourceBuildDefinition() *schema.Resource {
 								string(model.RepoTypeValues.TfsGit),
 								string(model.RepoTypeValues.Bitbucket),
 								string(model.RepoTypeValues.GitHubEnterprise),
+								string(model.RepoTypeValues.OtherGit),
 							}, false),
+						},
+						"yml_path": {
+							Type:     schema.TypeString,
+							Optional: true,
 						},
 						"branch_name": {
 							Type:     schema.TypeString,
@@ -186,9 +188,16 @@ func ResourceBuildDefinition() *schema.Resource {
 							Default:  "",
 						},
 						"github_enterprise_url": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "",
+							Type:          schema.TypeString,
+							Optional:      true,
+							Default:       "",
+							ConflictsWith: []string{"repository.0.url"},
+						},
+						"url": {
+							Type:          schema.TypeString,
+							Optional:      true,
+							Computed:      true,
+							ConflictsWith: []string{"repository.0.github_enterprise_url"},
 						},
 						"report_build_status": {
 							Type:     schema.TypeBool,
@@ -305,6 +314,157 @@ func ResourceBuildDefinition() *schema.Resource {
 					},
 				},
 			},
+			"build_completion_trigger": {
+				Type:     schema.TypeList,
+				Optional: true,
+				MinItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"build_definition_id": {
+							Type:         schema.TypeInt,
+							Required:     true,
+							ValidateFunc: validation.NoZeroValues,
+						},
+						"branch_filter": branchFilter,
+					},
+				},
+			},
+			"agent_specification": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
+			},
+			"job_authorization_scope": {
+				Type:     schema.TypeString,
+				Optional: true,
+				ValidateFunc: validation.StringInSlice([]string{
+					string(build.BuildAuthorizationScopeValues.Project),
+					string(build.BuildAuthorizationScopeValues.ProjectCollection),
+				}, false),
+				Default: string(build.BuildAuthorizationScopeValues.ProjectCollection),
+			},
+			"jobs": {
+				Type:     schema.TypeList,
+				Optional: true,
+				MinItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"name": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringIsNotEmpty,
+						},
+						"ref_name": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringIsNotEmpty,
+						},
+						"condition": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringIsNotEmpty,
+						},
+						"dependencies": {
+							Type:     schema.TypeList,
+							Optional: true,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"scope": {
+										Type:         schema.TypeString,
+										Required:     true,
+										ValidateFunc: validation.StringIsNotEmpty,
+									},
+								},
+							},
+						},
+						"target": {
+							Type:     schema.TypeList,
+							Required: true,
+							MinItems: 1,
+							MaxItems: 1,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"type": {
+										Type:     schema.TypeString,
+										Required: true,
+										ValidateFunc: validation.StringInSlice([]string{
+											string(model.PipelineJobTypeValues.AgentJob),
+											string(model.PipelineJobTypeValues.AgentlessJob),
+										}, false),
+									},
+									"execution_options": {
+										Type:     schema.TypeList,
+										Required: true,
+										MinItems: 1,
+										MaxItems: 1,
+										Elem: &schema.Resource{
+											Schema: map[string]*schema.Schema{
+												"type": {
+													Type:     schema.TypeString,
+													Required: true,
+													ValidateFunc: validation.StringInSlice([]string{
+														string(model.JobExecutionOptionsTypeValues.None),
+														string(model.JobExecutionOptionsTypeValues.MultiConfiguration),
+														string(model.JobExecutionOptionsTypeValues.MultiAgent),
+													}, false),
+												},
+												"max_concurrency": { // needs to be set when executionOptions type is: Multi-Configuration
+													Type:         schema.TypeInt,
+													Optional:     true,
+													Computed:     true,
+													ValidateFunc: validation.IntBetween(1, 99),
+												},
+												"multipliers": { // required when executionOptions type: Multi-Configuration
+													Type:         schema.TypeString,
+													Optional:     true,
+													ValidateFunc: validation.StringIsNotEmpty,
+												},
+												"continue_on_error": { // required when executionOptions is: 1, or 2
+													Type:     schema.TypeBool,
+													Optional: true,
+												},
+											},
+										},
+									},
+									"demands": {
+										Type:     schema.TypeList,
+										Optional: true,
+										Elem: &schema.Schema{
+											Type: schema.TypeString,
+										},
+									},
+								},
+							},
+						},
+						"job_timeout_in_minutes": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							Default:      0,
+							ValidateFunc: validation.IntBetween(0, 1000000000),
+						},
+						"job_cancel_timeout_in_minutes": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							Default:      0,
+							ValidateFunc: validation.IntBetween(0, 60),
+						},
+						"job_authorization_scope": {
+							Type:     schema.TypeString,
+							Optional: true,
+							ValidateFunc: validation.StringInSlice([]string{
+								string(build.BuildAuthorizationScopeValues.Project),
+								string(build.BuildAuthorizationScopeValues.ProjectCollection),
+							}, false),
+							Default: string(build.BuildAuthorizationScopeValues.ProjectCollection),
+						},
+						"allow_scripts_auth_access_option": { // available when job type is AgentJob(1)
+							Type:     schema.TypeBool,
+							Optional: true,
+							Default:  false,
+						},
+					},
+				},
+			},
 			"schedules": {
 				Type:     schema.TypeList,
 				Optional: true,
@@ -384,18 +544,17 @@ func resourceBuildDefinitionCreate(ctx context.Context, d *schema.ResourceData, 
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	buildDefinition, projectID, err := expandBuildDefinition(d)
+	buildDefinition, projectID, err := expandBuildDefinition(d, m)
 	if err != nil {
-		return diag.Errorf("error creating resource Build Definition: %+v", err)
+		return diag.Errorf(" Creating Build Definition: %+v", err)
 	}
 
 	createdBuildDefinition, err := clients.BuildClient.CreateDefinition(clients.Ctx, build.CreateDefinitionArgs{
 		Definition: buildDefinition,
 		Project:    &projectID,
 	})
-
 	if err != nil {
-		return diag.Errorf("error creating resource Build Definition: %+v", err)
+		return diag.Errorf(" Creating Build Definition: %+v", err)
 	}
 
 	var diags diag.Diagnostics = nil
@@ -422,7 +581,6 @@ func resourceBuildDefinitionCreate(ctx context.Context, d *schema.ResourceData, 
 						},
 					},
 				})
-
 				if err != nil {
 					diags = append(diags, diag.Diagnostic{
 						Severity: diag.Warning,
@@ -447,7 +605,6 @@ func resourceBuildDefinitionCreate(ctx context.Context, d *schema.ResourceData, 
 func resourceBuildDefinitionRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	clients := m.(*client.AggregatedClient)
 	projectID, buildDefinitionID, err := tfhelper.ParseProjectIDAndResourceID(d)
-
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -456,7 +613,6 @@ func resourceBuildDefinitionRead(ctx context.Context, d *schema.ResourceData, m 
 		Project:      &projectID,
 		DefinitionId: &buildDefinitionID,
 	})
-
 	if err != nil {
 		if utils.ResponseWasNotFound(err) {
 			d.SetId("")
@@ -464,9 +620,7 @@ func resourceBuildDefinitionRead(ctx context.Context, d *schema.ResourceData, m 
 		}
 		return diag.FromErr(err)
 	}
-
-	flattenBuildDefinition(d, buildDefinition, projectID)
-	return nil
+	return diag.FromErr(flattenBuildDefinition(d, buildDefinition, projectID))
 }
 
 func resourceBuildDefinitionUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
@@ -475,7 +629,7 @@ func resourceBuildDefinitionUpdate(ctx context.Context, d *schema.ResourceData, 
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	buildDefinition, projectID, err := expandBuildDefinition(d)
+	buildDefinition, projectID, err := expandBuildDefinition(d, m)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -485,7 +639,6 @@ func resourceBuildDefinitionUpdate(ctx context.Context, d *schema.ResourceData, 
 		Project:      &projectID,
 		DefinitionId: buildDefinition.Id,
 	})
-
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -507,11 +660,16 @@ func resourceBuildDefinitionDelete(ctx context.Context, d *schema.ResourceData, 
 	return diag.FromErr(err)
 }
 
-func flattenBuildDefinition(d *schema.ResourceData, buildDefinition *build.BuildDefinition, projectID string) {
+func flattenBuildDefinition(d *schema.ResourceData, buildDefinition *build.BuildDefinition, projectID string) error {
 	d.Set("project_id", projectID)
 	d.Set("name", *buildDefinition.Name)
 	d.Set("path", *buildDefinition.Path)
-	d.Set("repository", flattenRepository(buildDefinition))
+
+	repo, err := flattenRepository(buildDefinition)
+	if err != nil {
+		return err
+	}
+	d.Set("repository", repo)
 
 	if buildDefinition.Queue != nil && buildDefinition.Queue.Pool != nil {
 		d.Set("agent_pool_name", *buildDefinition.Queue.Pool.Name)
@@ -534,6 +692,33 @@ func flattenBuildDefinition(d *schema.ResourceData, buildDefinition *build.Build
 		if triggers[build.DefinitionTriggerTypeValues.Schedule] != nil {
 			d.Set("schedules", triggers[build.DefinitionTriggerTypeValues.Schedule])
 		}
+
+		if triggers[build.DefinitionTriggerTypeValues.BuildCompletion] != nil {
+			d.Set("build_completion_trigger", triggers[build.DefinitionTriggerTypeValues.BuildCompletion])
+		}
+	}
+
+	if buildDefinition.Process != nil {
+		pipeJobs, err := flattenBuildDefinitionJobs(buildDefinition.Process)
+		if err != nil {
+			return fmt.Errorf("Flattening pipeline jobs: %+v", err)
+		}
+
+		err = d.Set("jobs", pipeJobs)
+		if err != nil {
+			return fmt.Errorf("Setting build definition jobs: %+v", err)
+		}
+
+		// set agent identifier
+		if processMap, ok := buildDefinition.Process.(map[string]interface{}); ok {
+			if target, ok := processMap["target"]; ok {
+				if spec, ok := target.(map[string]interface{})["agentSpecification"]; ok {
+					if agentIdentifier, ok := spec.(map[string]interface{})["identifier"]; ok {
+						d.Set("agent_specification", agentIdentifier.(string))
+					}
+				}
+			}
+		}
 	}
 
 	revision := 0
@@ -541,9 +726,87 @@ func flattenBuildDefinition(d *schema.ResourceData, buildDefinition *build.Build
 		revision = *buildDefinition.Revision
 	}
 
-	d.Set("revision", revision)
+	d.Set("job_authorization_scope", buildDefinition.JobAuthorizationScope)
 
+	d.Set("revision", revision)
 	d.Set("queue_status", *buildDefinition.QueueStatus)
+	return nil
+}
+
+func flattenBuildDefinitionJobs(input interface{}) ([]interface{}, error) {
+	if input == nil {
+		return []interface{}{}, nil
+	}
+
+	result := make([]interface{}, 0)
+	if v, ok := input.(map[string]interface{}); ok {
+		if phases, ok := v["phases"]; ok {
+			var jobs []model.PipelineJob
+
+			v, err := json.Marshal(phases)
+			if err != nil {
+				return nil, fmt.Errorf("Get pipeline jobs byte array: %+v", err)
+			}
+
+			err = json.Unmarshal(v, &jobs)
+			if err != nil {
+				return nil, fmt.Errorf("Convert Pipelins Jobs to PipelineJob: %+v", err)
+			}
+
+			for _, job := range jobs {
+				var dependencyMap []map[string]interface{}
+				if job.Dependencies != nil {
+					for _, dependency := range *job.Dependencies {
+						dependencyMap = append(dependencyMap, map[string]interface{}{
+							"scope": dependency.Scope,
+						})
+					}
+				}
+
+				var targetMap map[string]interface{}
+				if job.Target != nil {
+					targetMap = map[string]interface{}{
+						"demands": job.Target.Demands,
+						"type":    model.PipelineJobTypeValueTypeMap[*job.Target.Type],
+						"execution_options": []interface{}{
+							map[string]interface{}{
+								"type": model.JobExecutionOptionsTypeValues.None,
+							},
+						},
+					}
+
+					if job.Target.ExecutionOptions != nil {
+						execOptionsMap := map[string]interface{}{
+							"continue_on_error": job.Target.ExecutionOptions.ContinueOnError,
+							"type":              model.JobExecutionOptionsTypValueTypeMap[*job.Target.ExecutionOptions.Type],
+							"max_concurrency":   job.Target.ExecutionOptions.MaxConcurrency,
+						}
+						if job.Target.ExecutionOptions.Multipliers != nil && len(*job.Target.ExecutionOptions.Multipliers) > 0 {
+							execOptionsMap["multipliers"] = (*job.Target.ExecutionOptions.Multipliers)[0]
+						}
+
+						targetMap["execution_options"] = []interface{}{execOptionsMap}
+					}
+				}
+
+				jobConfig := map[string]interface{}{
+					"name":                             job.Name,
+					"ref_name":                         job.RefName,
+					"condition":                        job.Condition,
+					"allow_scripts_auth_access_option": job.Target.AllowScriptsAuthAccessOption,
+					"job_timeout_in_minutes":           job.JobTimeoutInMinutes,
+					"job_cancel_timeout_in_minutes":    job.JobCancelTimeoutInMinutes,
+					"job_authorization_scope":          job.JobAuthorizationScope,
+					"dependencies":                     dependencyMap,
+					"target":                           []interface{}{targetMap},
+				}
+
+				result = append(result, jobConfig)
+			}
+		}
+	}
+
+	return result, nil
 }
 
 func flattenBuildVariables(d *schema.ResourceData, buildDefinition *build.BuildDefinition) interface{} {
@@ -564,14 +827,14 @@ func flattenBuildVariables(d *schema.ResourceData, buildDefinition *build.BuildD
 			bdVariableAllowOverride: converter.ToBool(varVal.AllowOverride, false),
 		}
 
-		//read secret variable from state if exist
+		// read secret variable from state if exist
 		if isSecret {
 			if stateVal := tfhelper.FindMapInSetWithGivenKeyValue(d, bdVariable, bdVariableName, varName); stateVal != nil {
 				variable = stateVal
 			}
 		}
 		variables[index] = variable
-		index = index + 1
+		index++
 	}
 
 	return variables
@@ -591,7 +854,7 @@ func flattenVariableGroups(buildDefinition *build.BuildDefinition) []int {
 	return variableGroups
 }
 
-func flattenRepository(buildDefinition *build.BuildDefinition) interface{} {
+func flattenRepository(buildDefinition *build.BuildDefinition) (interface{}, error) {
 	yamlFilePath := ""
 	githubEnterpriseUrl := ""
 
@@ -599,7 +862,9 @@ func flattenRepository(buildDefinition *build.BuildDefinition) interface{} {
 	// available from the compiler is `interface{}` so we can probe for known
 	// implementations
 	if processMap, ok := buildDefinition.Process.(map[string]interface{}); ok {
-		yamlFilePath = processMap["yamlFilename"].(string)
+		if v, exist := processMap["yamlFilename"].(string); exist {
+			yamlFilePath = v
+		}
 	}
 	if yamlProcess, ok := buildDefinition.Process.(*build.YamlProcess); ok {
 		yamlFilePath = *yamlProcess.YamlFilename
@@ -609,7 +874,7 @@ func flattenRepository(buildDefinition *build.BuildDefinition) interface{} {
 	if strings.EqualFold(*buildDefinition.Repository.Type, string(model.RepoTypeValues.GitHubEnterprise)) {
 		repoUrl, err := url.Parse(*buildDefinition.Repository.Url)
 		if err != nil {
-			return fmt.Errorf("Unable to parse repository URL: %+v ", err)
+			return nil, fmt.Errorf("Unable to parse repository URL: %+v ", err)
 		}
 		githubEnterpriseUrl = fmt.Sprintf("%s://%s", repoUrl.Scheme, repoUrl.Host)
 	}
@@ -620,6 +885,7 @@ func flattenRepository(buildDefinition *build.BuildDefinition) interface{} {
 		"repo_type":             *buildDefinition.Repository.Type,
 		"branch_name":           *buildDefinition.Repository.DefaultBranch,
 		"github_enterprise_url": githubEnterpriseUrl,
+		"url":                   *buildDefinition.Repository.Url,
 	}}
 
 	if buildDefinition.Repository != nil && buildDefinition.Repository.Properties != nil {
@@ -628,11 +894,14 @@ func flattenRepository(buildDefinition *build.BuildDefinition) interface{} {
 		}
 
 		if buildStatus, ok := (*buildDefinition.Repository.Properties)["reportBuildStatus"]; ok {
-			reportBuildStatus, _ := strconv.ParseBool(buildStatus)
+			reportBuildStatus, err := strconv.ParseBool(buildStatus)
+			if err != nil {
+				return nil, fmt.Errorf("Unable parse Repository build status. Error: %+v", err)
+			}
 			repo[0]["report_build_status"] = reportBuildStatus
 		}
 	}
-	return repo
+	return repo, nil
 }
 
 func flattenBuildDefinitionBranchOrPathFilter(m []interface{}) []interface{} {
@@ -745,6 +1014,15 @@ func flattenBuildDefinitionScheduleTrigger(ms map[string]interface{}) []interfac
 	return schedules
 }
 
+func flattenBuildCompletionTrigger(buildCompletionTrigger map[string]interface{}) interface{} {
+	buildId := buildCompletionTrigger["definition"].(map[string]interface{})["id"].(float64)
+	triggerConfig := map[string]interface{}{
+		"branch_filter":       flattenBuildDefinitionBranchOrPathFilter(buildCompletionTrigger["branchFilters"].([]interface{})),
+		"build_definition_id": buildId,
+	}
+	return triggerConfig
+}
+
 func flattenTriggers(m *[]interface{}) map[build.DefinitionTriggerType][]interface{} {
 	buildTriggers := map[build.DefinitionTriggerType][]interface{}{}
 	for _, ds := range *m {
@@ -755,19 +1033,26 @@ func flattenTriggers(m *[]interface{}) map[build.DefinitionTriggerType][]interfa
 			if val, ok := trigger["settingsSourceType"]; ok {
 				isYaml = int(val.(float64)) == 2
 			}
-			buildTriggers[build.DefinitionTriggerTypeValues.ContinuousIntegration] =
-				[]interface{}{flattenBuildDefinitionContinuousIntegrationTrigger(trigger, isYaml)}
+			buildTriggers[build.DefinitionTriggerTypeValues.ContinuousIntegration] = []interface{}{flattenBuildDefinitionContinuousIntegrationTrigger(trigger, isYaml)}
 		}
 		if strings.EqualFold(triggerType, string(build.DefinitionTriggerTypeValues.PullRequest)) {
 			isYaml := false
 			if val, ok := trigger["settingsSourceType"]; ok {
 				isYaml = int(val.(float64)) == 2
 			}
-			buildTriggers[build.DefinitionTriggerTypeValues.PullRequest] =
-				[]interface{}{flattenBuildDefinitionPullRequestTrigger(trigger, isYaml)}
+			buildTriggers[build.DefinitionTriggerTypeValues.PullRequest] = []interface{}{flattenBuildDefinitionPullRequestTrigger(trigger, isYaml)}
 		}
 		if strings.EqualFold(triggerType, string(build.DefinitionTriggerTypeValues.Schedule)) {
 			buildTriggers[build.DefinitionTriggerTypeValues.Schedule] = flattenBuildDefinitionScheduleTrigger(trigger)
+		}
+		if strings.EqualFold(triggerType, string(build.DefinitionTriggerTypeValues.BuildCompletion)) {
+			if _, ok := buildTriggers[build.DefinitionTriggerTypeValues.BuildCompletion]; !ok {
+				buildTriggers[build.DefinitionTriggerTypeValues.BuildCompletion] = []interface{}{flattenBuildCompletionTrigger(trigger)}
+			} else {
+				buildTriggers[build.DefinitionTriggerTypeValues.BuildCompletion] = append(
+					buildTriggers[build.DefinitionTriggerTypeValues.BuildCompletion],
+					flattenBuildCompletionTrigger(trigger))
+			}
 		}
 	}
 	return buildTriggers
@@ -813,6 +1098,7 @@ func expandBuildDefinitionFork(d map[string]interface{}) map[string]interface{} 
 		"enabled":      d["enabled"].(bool),
 	}
 }
+
 func expandBuildDefinitionForkList(d []interface{}) []map[string]interface{} {
 	vs := make([]map[string]interface{}, 0, len(d))
 	for _, v := range d {
@@ -822,6 +1108,7 @@ func expandBuildDefinitionForkList(d []interface{}) []map[string]interface{} {
 	}
 	return vs
 }
+
 func expandBuildDefinitionForkListFirstOrNil(d []interface{}) map[string]interface{} {
 	d2 := expandBuildDefinitionForkList(d)
 	if len(d2) != 1 {
@@ -837,6 +1124,7 @@ func expandBuildDefinitionManualPullRequestTrigger(d map[string]interface{}) map
 		"autoCancel":    d["auto_cancel"].(bool),
 	}
 }
+
 func expandBuildDefinitionManualPullRequestTriggerList(d []interface{}) []map[string]interface{} {
 	vs := make([]map[string]interface{}, 0, len(d))
 	for _, v := range d {
@@ -846,6 +1134,7 @@ func expandBuildDefinitionManualPullRequestTriggerList(d []interface{}) []map[st
 	}
 	return vs
 }
+
 func expandBuildDefinitionManualPullRequestTriggerListFirstOrNil(d []interface{}) map[string]interface{} {
 	d2 := expandBuildDefinitionManualPullRequestTriggerList(d)
 	if len(d2) != 1 {
@@ -864,6 +1153,7 @@ func expandBuildDefinitionManualContinuousIntegrationTrigger(d map[string]interf
 		"pollingInterval":              d["polling_interval"].(int),
 	}
 }
+
 func expandBuildDefinitionManualContinuousIntegrationTriggerList(d []interface{}) []map[string]interface{} {
 	vs := make([]map[string]interface{}, 0, len(d))
 	for _, v := range d {
@@ -873,6 +1163,7 @@ func expandBuildDefinitionManualContinuousIntegrationTriggerList(d []interface{}
 	}
 	return vs
 }
+
 func expandBuildDefinitionManualContinuousIntegrationTriggerListFirstOrNil(d []interface{}) map[string]interface{} {
 	d2 := expandBuildDefinitionManualContinuousIntegrationTriggerList(d)
 	if len(d2) != 1 {
@@ -881,7 +1172,7 @@ func expandBuildDefinitionManualContinuousIntegrationTriggerListFirstOrNil(d []i
 	return d2[0]
 }
 
-func expandBuildDefinitionTrigger(d map[string]interface{}, t build.DefinitionTriggerType) interface{} {
+func expandBuildDefinitionTrigger(d map[string]interface{}, t build.DefinitionTriggerType, m interface{}, projectID string) (interface{}, error) {
 	switch t {
 	case build.DefinitionTriggerTypeValues.ContinuousIntegration:
 		isYaml := d["use_yaml"].(bool)
@@ -893,9 +1184,9 @@ func expandBuildDefinitionTrigger(d map[string]interface{}, t build.DefinitionTr
 				"pathFilters":                  []interface{}{},
 				"triggerType":                  string(t),
 				"settingsSourceType":           float64(2),
-			}
+			}, nil
 		}
-		return expandBuildDefinitionManualContinuousIntegrationTriggerListFirstOrNil(d["override"].([]interface{}))
+		return expandBuildDefinitionManualContinuousIntegrationTriggerListFirstOrNil(d["override"].([]interface{})), nil
 	case build.DefinitionTriggerTypeValues.PullRequest:
 		isYaml := d["use_yaml"].(bool)
 		commentRequired := d["comment_required"].(string)
@@ -917,7 +1208,7 @@ func expandBuildDefinitionTrigger(d map[string]interface{}, t build.DefinitionTr
 			vs["pathFilters"] = override["pathFilters"]
 			vs["autoCancel"] = override["autoCancel"]
 		}
-		return vs
+		return vs, nil
 	case build.DefinitionTriggerTypeValues.Schedule:
 		scheduleConfig := map[string]interface{}{
 			"branchFilters":           expandBuildDefinitionBranchOrPathFilterSet(d["branch_filter"].(*schema.Set)),
@@ -928,19 +1219,41 @@ func expandBuildDefinitionTrigger(d map[string]interface{}, t build.DefinitionTr
 			"scheduleJobId":           nil,
 		}
 		scheduleConfig["daysToBuild"] = DateToDays(d["days_to_build"].([]interface{}))
-		return scheduleConfig
+		return scheduleConfig, nil
+	case build.DefinitionTriggerTypeValues.BuildCompletion:
+		buildCompleteConfig := map[string]interface{}{
+			"branchFilters":           expandBuildDefinitionBranchOrPathFilterSet(d["branch_filter"].(*schema.Set)),
+			"requiresSuccessfulBuild": true,
+			"triggerType":             string(t),
+		}
+		clients := m.(*client.AggregatedClient)
+
+		buildDefinition, err := clients.BuildClient.GetDefinition(clients.Ctx, build.GetDefinitionArgs{
+			Project:      &projectID,
+			DefinitionId: converter.ToPtr(d["build_definition_id"].(int)),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("%+v", err)
+		}
+		buildCompleteConfig["definition"] = buildDefinition
+		return buildCompleteConfig, nil
 	}
-	return nil
+	return nil, nil
 }
-func expandBuildDefinitionTriggerList(d []interface{}, t build.DefinitionTriggerType) []interface{} {
+
+func expandBuildDefinitionTriggerList(d []interface{}, t build.DefinitionTriggerType, m interface{}, projectID string) ([]interface{}, error) {
 	vs := make([]interface{}, 0, len(d))
 	for _, v := range d {
 		val, ok := v.(map[string]interface{})
 		if ok {
-			vs = append(vs, expandBuildDefinitionTrigger(val, t))
+			trigger, err := expandBuildDefinitionTrigger(val, t, m, projectID)
+			if err != nil {
+				return nil, err
+			}
+			vs = append(vs, trigger)
 		}
 	}
-	return vs
+	return vs, nil
 }
 
 func expandVariableGroups(d *schema.ResourceData) *[]build.VariableGroup {
@@ -992,7 +1305,126 @@ func expandVariables(d *schema.ResourceData) (*map[string]build.BuildDefinitionV
 	return &expandedVars, nil
 }
 
-func expandBuildDefinition(d *schema.ResourceData) (*build.BuildDefinition, string, error) {
+func expandBuildDefinitionJobs(input []interface{}) (*[]model.PipelineJob, error) {
+	if len(input) == 0 {
+		return &[]model.PipelineJob{}, nil
+	}
+
+	result := make([]model.PipelineJob, 0, len(input))
+	for _, jobConfig := range input {
+		jobMap := jobConfig.(map[string]interface{})
+		job := model.PipelineJob{
+			Name:                      converter.String(jobMap["name"].(string)),
+			RefName:                   converter.String(jobMap["ref_name"].(string)),
+			Condition:                 converter.String(jobMap["condition"].(string)),
+			JobTimeoutInMinutes:       converter.Int(jobMap["job_timeout_in_minutes"].(int)),
+			JobCancelTimeoutInMinutes: converter.Int(jobMap["job_cancel_timeout_in_minutes"].(int)),
+			JobAuthorizationScope:     converter.String(jobMap["job_authorization_scope"].(string)),
+		}
+
+		// dependencies
+		if depConfig := jobMap["dependencies"].([]interface{}); len(depConfig) > 0 {
+			var dependencies []model.JobDependency
+			for _, dep := range depConfig {
+				depMap := dep.(map[string]interface{})
+				dependencies = append(dependencies, model.JobDependency{
+					Scope: converter.String(depMap["scope"].(string)),
+					Event: converter.String("Completed"),
+				})
+			}
+			job.Dependencies = &dependencies
+		}
+
+		// job target
+		targetConfig := jobMap["target"].([]interface{})[0]
+		targetMap := targetConfig.(map[string]interface{})
+		executionOptionsMap := targetMap["execution_options"].([]interface{})[0].(map[string]interface{})
+
+		// set task type (AgentJob or AgentlessJob) and additional options(Allow scripts to access the OAuth token)
+		jobType := model.PipelineJobTypeTypeValueMap[targetMap["type"].(string)]
+
+		// execution options
+		executionType := model.JobExecutionOptionsType(executionOptionsMap["type"].(string))
+		var executeOptions model.JobExecutionOptions
+
+		switch executionType {
+		case model.JobExecutionOptionsTypeValues.None:
+			executeOptions = model.JobExecutionOptions{
+				Type: converter.ToPtr(0),
+			}
+		case model.JobExecutionOptionsTypeValues.MultiConfiguration:
+			executeOptions = model.JobExecutionOptions{
+				Type:            converter.ToPtr(1),
+				ContinueOnError: converter.ToPtr(executionOptionsMap["continue_on_error"].(bool)),
+				Multipliers:     &[]string{executionOptionsMap["multipliers"].(string)},
+			}
+
+			if jobType == 1 { // Agent Job
+				if v, ok := executionOptionsMap["max_concurrency"]; !ok || v.(int) == 0 {
+					return nil, fmt.Errorf("`max_concurrency` must be set when job is `AgentJob`")
+				}
+				executeOptions.MaxConcurrency = converter.ToPtr(executionOptionsMap["max_concurrency"].(int))
+			}
+
+			// TODO
+			// if jobType == 2 { // Agentless Job
+			//	if v, ok := executionOptionsMap["max_concurrency"]; ok && v.(int) > 0 {
+			//		return nil, fmt.Errorf("`max_concurrency` must not be set when job is `AgentlessJob`")
+			//	}
+			// }
+
+			// AgentlessJob(2)
+			if jobType == 2 {
+				executeOptions.MaxConcurrency = converter.ToPtr(50) // hard coded
+			}
+		case model.JobExecutionOptionsTypeValues.MultiAgent: // multi-agent, only available when job type is AgentJob
+			if jobType == 2 {
+				return nil, fmt.Errorf("`Multi-Agent` is not supported when job Type is `AgentlessJob`")
+			}
+			executeOptions = model.JobExecutionOptions{
+				Type:            converter.ToPtr(2),
+				ContinueOnError: converter.ToPtr(executionOptionsMap["continue_on_error"].(bool)),
+			}
+
+			if v, ok := executionOptionsMap["multipliers"]; ok {
+				if len(v.(string)) > 0 {
+					return nil, fmt.Errorf("`multipliers` must not be set when Execution Options Type is `Multi-Agent`")
+				}
+			}
+			if jobType == 1 {
+				if v, ok := executionOptionsMap["max_concurrency"]; !ok || v.(int) == 0 {
+					return nil, fmt.Errorf("`max_concurrency` must be set when job is `AgentJob`")
+				}
+				executeOptions.MaxConcurrency = converter.ToPtr(executionOptionsMap["max_concurrency"].(int))
+			}
+		}
+
+		target := model.JobTarget{
+			Type:             converter.ToPtr(jobType),
+			ExecutionOptions: &executeOptions,
+		}
+
+		// configurations only available when job type is AgentJob(1)
+		if *target.Type == 1 {
+			target.AllowScriptsAuthAccessOption = converter.ToPtr(jobMap["allow_scripts_auth_access_option"].(bool))
+			demands := targetMap["demands"].([]interface{})
+			if len(demands) > 0 {
+				target.Demands = converter.ToPtr(tfhelper.ExpandStringList(demands))
+			}
+		} else {
+			demands := targetMap["demands"].([]interface{})
+			if len(demands) > 0 {
+				return nil, fmt.Errorf("`demands` must not be set when Job Type is `AgentlessJob`")
+			}
+		}
+		job.Target = &target
+
+		result = append(result, job)
+	}
+	return &result, nil
+}
+
+func expandBuildDefinition(d *schema.ResourceData, meta interface{}) (*build.BuildDefinition, string, error) {
 	projectID := d.Get("project_id").(string)
 	repositories := d.Get("repository").([]interface{})
 
@@ -1004,39 +1436,79 @@ func expandBuildDefinition(d *schema.ResourceData) (*build.BuildDefinition, stri
 	repository := repositories[0].(map[string]interface{})
 
 	repoID := repository["repo_id"].(string)
-	repoType := model.RepoType(repository["repo_type"].(string))
+	repoType := repository["repo_type"].(string)
 	repoURL := ""
 	repoAPIURL := ""
 
-	if strings.EqualFold(string(repoType), string(model.RepoTypeValues.GitHub)) {
+	switch repoType {
+	case string(model.RepoTypeValues.GitHub):
 		repoURL = fmt.Sprintf("https://github.com/%s.git", repoID)
 		repoAPIURL = fmt.Sprintf("https://api.github.com/repos/%s", repoID)
-	}
-	if strings.EqualFold(string(repoType), string(model.RepoTypeValues.Bitbucket)) {
+	case string(model.RepoTypeValues.Bitbucket):
 		repoURL = fmt.Sprintf("https://bitbucket.org/%s.git", repoID)
 		repoAPIURL = fmt.Sprintf("https://api.bitbucket.org/2.0/repositories/%s", repoID)
-	}
-	if strings.EqualFold(string(repoType), string(model.RepoTypeValues.GitHubEnterprise)) {
+	case string(model.RepoTypeValues.GitHubEnterprise):
 		githubEnterpriseURL := repository["github_enterprise_url"].(string)
 		repoURL = fmt.Sprintf("%s/%s.git", githubEnterpriseURL, repoID)
 		repoAPIURL = fmt.Sprintf("%s/api/v3/repos/%s", githubEnterpriseURL, repoID)
+	case string(model.RepoTypeValues.OtherGit):
+		repoURL = repository["url"].(string)
 	}
 
-	ciTriggers := expandBuildDefinitionTriggerList(
+	if strings.EqualFold(repoType, string(model.RepoTypeValues.OtherGit)) {
+		if _, ok := repository["service_connection_id"]; !ok {
+			return nil, "", fmt.Errorf("`repository.service_connection_id` must be set when `repoType` is `Git`")
+		}
+
+		if _, ok := repository["url"]; !ok {
+			return nil, "", fmt.Errorf("`repository.service_connection_id` must be set when `repoType` is `Git`")
+		}
+	}
+
+	var buildTriggers []any
+
+	ciTriggers, err := expandBuildDefinitionTriggerList(
 		d.Get("ci_trigger").([]interface{}),
 		build.DefinitionTriggerTypeValues.ContinuousIntegration,
+		meta,
+		projectID,
 	)
-	pullRequestTriggers := expandBuildDefinitionTriggerList(
+	if err != nil {
+		return nil, "", err
+	}
+	buildTriggers = append(buildTriggers, ciTriggers...)
+
+	pullRequestTriggers, err := expandBuildDefinitionTriggerList(
 		d.Get("pull_request_trigger").([]interface{}),
 		build.DefinitionTriggerTypeValues.PullRequest,
+		meta,
+		projectID,
 	)
+	if err != nil {
+		return nil, "", err
+	}
+	buildTriggers = append(buildTriggers, pullRequestTriggers...)
 
-	buildTriggers := append(ciTriggers, pullRequestTriggers...)
+	buildCompletionTriggers, err := expandBuildDefinitionTriggerList(
+		d.Get("build_completion_trigger").([]interface{}),
+		build.DefinitionTriggerTypeValues.BuildCompletion,
+		meta,
+		projectID,
+	)
+	if err != nil {
+		return nil, "", err
+	}
+	buildTriggers = append(buildTriggers, buildCompletionTriggers...)
 
-	schedules := expandBuildDefinitionTriggerList(
+	schedules, err := expandBuildDefinitionTriggerList(
 		d.Get("schedules").([]interface{}),
 		build.DefinitionTriggerTypeValues.Schedule,
+		meta,
+		projectID,
 	)
+	if err != nil {
+		return nil, "", err
+	}
 	if len(schedules) > 0 {
 		scheduleTriggers := map[string]interface{}{
 			"schedules":   schedules,
@@ -1057,7 +1529,7 @@ func expandBuildDefinition(d *schema.ResourceData) (*build.BuildDefinition, stri
 
 	variables, err := expandVariables(d)
 	if err != nil {
-		return nil, "", fmt.Errorf("Error expanding varibles: %+v", err)
+		return nil, "", fmt.Errorf("Expanding varibles: %+v", err)
 	}
 
 	queueStatus := build.DefinitionQueueStatus(d.Get("queue_status").(string))
@@ -1072,7 +1544,7 @@ func expandBuildDefinition(d *schema.ResourceData) (*build.BuildDefinition, stri
 			Id:            &repoID,
 			Name:          &repoID,
 			DefaultBranch: converter.String(repository["branch_name"].(string)),
-			Type:          converter.String(string(repoType)),
+			Type:          converter.String(repoType),
 			Properties: &map[string]string{
 				"connectedServiceId": repository["service_connection_id"].(string),
 				"apiUrl":             repoAPIURL,
@@ -1095,6 +1567,33 @@ func expandBuildDefinition(d *schema.ResourceData) (*build.BuildDefinition, stri
 			Name: converter.StringFromInterface(agentPoolName),
 			Pool: &build.TaskAgentPoolReference{
 				Name: converter.StringFromInterface(agentPoolName),
+			},
+		}
+	}
+
+	// other git need clone the repository information
+	if repoType == string(model.RepoTypeValues.OtherGit) {
+		(*buildDefinition.Repository.Properties)["fullName"] = "repository"
+		(*buildDefinition.Repository.Properties)["cloneUrl"] = repoURL
+		buildDefinition.Repository.Clean = converter.String("true")
+
+		jobs, err := expandBuildDefinitionJobs(d.Get("jobs").([]interface{}))
+		if err != nil {
+			return nil, "", fmt.Errorf("Expanding jobs: %+v", err)
+		}
+
+		agentSpecification := d.Get("agent_specification").(string)
+		if len(agentSpecification) == 0 {
+			return nil, "", fmt.Errorf("Expanding jobs: `agent_specification` must be set when `repo_type` is `Git`")
+		}
+
+		buildDefinition.Process = map[string]interface{}{
+			"type":   1,
+			"phases": jobs,
+			"target": map[string]interface{}{
+				"agentSpecification": map[string]interface{}{
+					"identifier": d.Get("agent_specification"),
+				},
 			},
 		}
 	}

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/workitemtracking"
@@ -17,10 +16,13 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/testhelper"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var classificationProjectName = "test-acc-project-0fu72ecbiu"
-var classificationProjectID = "9c3a5552-268c-423c-a9cd-7de0b36b7035"
+var (
+	classificationProjectName = "test-acc-project-0fu72ecbiu"
+	classificationProjectID   = "9c3a5552-268c-423c-a9cd-7de0b36b7035"
+)
 
 type classificationNodeDefinition struct {
 	id         string
@@ -92,7 +94,7 @@ func TestClassification_Read_DontSwallowError(t *testing.T) {
 			StructureGroup: &structureType,
 			Depth:          converter.Int(1),
 		}).
-		Return(nil, fmt.Errorf(errMsg)).
+		Return(nil, fmt.Errorf("%s", errMsg)).
 		Times(1)
 
 	resourceData := schema.TestResourceDataRaw(t, CreateClassificationNodeSchema(map[string]*schema.Schema{}), nil)

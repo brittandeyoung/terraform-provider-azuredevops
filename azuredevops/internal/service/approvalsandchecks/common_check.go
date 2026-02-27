@@ -12,15 +12,17 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/tfhelper"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/pipelineschecksextras"
+	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/sdk/pipelineschecksextras"
 )
 
 // NOTE: In theory the API should accept "agentpool" as well, but the API client requires a project ID
 // so it doesn't seem to work and the website UI doesn't have it available
 var targetResourceTypes = []string{"endpoint", "environment", "queue", "repository", "securefile", "variablegroup"}
 
-type flatFunc func(d *schema.ResourceData, check *pipelineschecksextras.CheckConfiguration, projectID string) error
-type expandFunc func(d *schema.ResourceData) (*pipelineschecksextras.CheckConfiguration, string, error)
+type (
+	flatFunc   func(d *schema.ResourceData, check *pipelineschecksextras.CheckConfiguration, projectID string) error
+	expandFunc func(d *schema.ResourceData) (*pipelineschecksextras.CheckConfiguration, string, error)
+)
 
 type approvalAndCheckTypes struct {
 	ExtendsCheck     *pipelineschecksextras.CheckType
@@ -99,7 +101,7 @@ func genCheckCreateFunc(flatFunc flatFunc, expandFunc expandFunc) func(d *schema
 		clients := m.(*client.AggregatedClient)
 		configuration, projectID, err := expandFunc(d)
 		if err != nil {
-			return fmt.Errorf(" failed to expand check. Error: %+v", err)
+			return fmt.Errorf("failed to expand check. Error: %+v", err)
 		}
 
 		createdCheck, err := clients.PipelinesChecksClientExtras.AddCheckConfiguration(clients.Ctx, pipelineschecksextras.AddCheckConfigurationArgs{
@@ -107,7 +109,7 @@ func genCheckCreateFunc(flatFunc flatFunc, expandFunc expandFunc) func(d *schema
 			Configuration: configuration,
 		})
 		if err != nil {
-			return fmt.Errorf(" failed creating check, project ID: %s. Error: %+v", projectID, err)
+			return fmt.Errorf("failed creating check, project ID: %s. Error: %+v", projectID, err)
 		}
 
 		d.SetId(fmt.Sprintf("%d", *createdCheck.Id))
@@ -128,7 +130,6 @@ func genCheckReadFunc(flatFunc flatFunc) func(d *schema.ResourceData, m interfac
 			Id:      &taskCheckId,
 			Expand:  converter.ToPtr(pipelineschecksextras.CheckConfigurationExpandParameterValues.Settings),
 		})
-
 		if err != nil {
 			if utils.ResponseWasNotFound(err) || strings.Contains(err.Error(), "does not exist.") {
 				d.SetId("")
@@ -155,7 +156,6 @@ func genCheckUpdateFunc(flatFunc flatFunc, expandFunc expandFunc) schema.UpdateF
 				Configuration: taskCheck,
 				Id:            taskCheck.Id,
 			})
-
 		if err != nil {
 			return err
 		}
@@ -209,7 +209,7 @@ func doBaseExpansion(d *schema.ResourceData, checkType *pipelineschecksextras.Ch
 	if d.Id() != "" {
 		taskCheckId, err := strconv.Atoi(d.Id())
 		if err != nil {
-			return nil, "", fmt.Errorf(" parsing task check ID: (%+v)", err)
+			return nil, "", fmt.Errorf("parsing task check ID: (%+v)", err)
 		}
 		taskCheck.Id = &taskCheckId
 	}
@@ -222,7 +222,7 @@ func doBaseFlattening(d *schema.ResourceData, check *pipelineschecksextras.Check
 	d.Set("project_id", projectID)
 
 	if check.Resource == nil {
-		return fmt.Errorf(" resource not found")
+		return fmt.Errorf("resource not found")
 	}
 
 	d.Set("target_resource_id", check.Resource.Id)

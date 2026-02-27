@@ -1,14 +1,10 @@
-//go:build (all || data_sources || data_serviceendpoint_npm) && (!exclude_data_sources || !exclude_data_serviceendpoint_npm)
-// +build all data_sources data_serviceendpoint_npm
-// +build !exclude_data_sources !exclude_data_serviceendpoint_npm
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -47,7 +43,7 @@ resource "azuredevops_serviceendpoint_npm" "test" {
 }
 
 data "azuredevops_serviceendpoint_npm" "test" {
-  project_id          = azuredevops_project.test.id
+  project_id            = azuredevops_project.test.id
   service_endpoint_name = azuredevops_serviceendpoint_npm.test.service_endpoint_name
 }
 `, name)

@@ -72,22 +72,37 @@ resource "azuredevops_serviceendpoint_permissions" "example-permissions" {
 The following arguments are supported:
 
 * `project_id` - (Required) The ID of the project.
-* `principal` - (Required) The **group** principal to assign the permissions.
-* `permissions` - (Required) the permissions to assign. The following permissions are available.
-* `serviceendpoint_id` - (Optional) The id of the service endpoint to assign the permissions.
-* `replace` - (Optional) Replace (`true`) or merge (`false`) the permissions. Default: `true`
 
-| Permission        | Description                         |
-| ----------------- | ----------------------------------- |
-| Use               | Use service endpoint                |
-| Administer        | Full control over service endpoints |
-| Create            | Create service endpoints            |
-| ViewAuthorization | View authorizations                 |
-| ViewEndpoint      | View service endpoint properties    |
+* `principal` - (Required) The **group** principal to assign the permissions.
+
+* `permissions` - (Required) the permissions to assign. The following permissions are available.
+
+    | Permission        | Description                         |
+    |-------------------|-------------------------------------|
+    | Use               | Use service endpoint                |
+    | Administer        | Full control over service endpoints |
+    | Create            | Create service endpoints            |
+    | ViewAuthorization | View authorizations                 |
+    | ViewEndpoint      | View service endpoint properties    |
+
+---
+
+* `serviceendpoint_id` - (Optional) The id of the service endpoint to assign the permissions.
+
+* `replace` - (Optional) Replace (`true`) or merge (`false`) the permissions. Default: `true`
 
 ## Relevant Links
 
 * [Azure DevOps Service REST API 7.0 - Security](https://docs.microsoft.com/en-us/rest/api/azure/devops/security/?view=azure-devops-rest-7.0)
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 2 minutes) Used when creating the Service Endpoint Permissions.
+* `read` - (Defaults to 1 minute) Used when retrieving the Service Endpoint Permissions.
+* `update` - (Defaults to 2 minutes) Used when updating the Service Endpoint Permissions.
+* `delete` - (Defaults to 2 minutes) Used when deleting the Service Endpoint Permissions.
 
 ## Import
 

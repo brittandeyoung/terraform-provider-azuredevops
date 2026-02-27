@@ -1,14 +1,10 @@
-//go:build (all || core || data_sources || data_groups) && (!exclude_data_sources || !exclude_data_groups)
-// +build all core data_sources data_groups
-// +build !exclude_data_sources !exclude_data_groups
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -24,6 +20,8 @@ func TestAccIdentityGroupsDataSource(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
 					resource.TestCheckResourceAttrSet(tfNode, "groups.#"),
+					resource.TestCheckResourceAttrSet(tfNode, "groups.0.descriptor"),
+					resource.TestCheckResourceAttrSet(tfNode, "groups.0.subject_descriptor"),
 				),
 			},
 		},

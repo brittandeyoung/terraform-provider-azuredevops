@@ -1,14 +1,10 @@
-//go:build (all || data_sources || data_build_definition) && (!exclude_data_sources || !exclude_data_build_definition)
-// +build all data_sources data_build_definition
-// +build !exclude_data_sources !exclude_data_build_definition
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 

@@ -59,21 +59,36 @@ resource "azuredevops_iteration_permissions" "example-iteration-permissions" {
 The following arguments are supported:
 
 * `project_id` - (Required) The ID of the project to assign the permissions.
-* `principal` - (Required) The **group** principal to assign the permissions.
-* `permissions` - (Required) the permissions to assign. The following permissions are available.
-* `path` - (Optional) The name of the branch to assign the permissions. 
-* `replace` - (Optional) Replace (`true`) or merge (`false`) the permissions. Default: `true`
 
-| Permission      | Description                    |
-|-----------------|--------------------------------|
-| GENERIC_READ    | View permissions for this node |
-| GENERIC_WRITE   | Edit this node                 |
-| CREATE_CHILDREN | Create child nodes             |
-| DELETE          | Delete this node               |
+* `principal` - (Required) The **group** principal to assign the permissions.
+
+* `permissions` - (Required) the permissions to assign. The following permissions are available.
+    
+    | Permission      | Description                    |
+    |-----------------|--------------------------------|
+    | GENERIC_READ    | View permissions for this node |
+    | GENERIC_WRITE   | Edit this node                 |
+    | CREATE_CHILDREN | Create child nodes             |
+    | DELETE          | Delete this node               |
+
+---
+
+* `path` - (Optional) The name of the branch to assign the permissions.
+
+* `replace` - (Optional) Replace (`true`) or merge (`false`) the permissions. Default: `true`
 
 ## Relevant Links
 
 * [Azure DevOps Service REST API 7.0 - Security](https://docs.microsoft.com/en-us/rest/api/azure/devops/security/?view=azure-devops-rest-7.0)
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 10 minutes) Used when creating the Iteration Permission.
+* `read` - (Defaults to 5 minute) Used when retrieving the Iteration Permission.
+* `update` - (Defaults to 10 minutes) Used when updating the Iteration Permission.
+* `delete` - (Defaults to 10 minutes) Used when deleting the Iteration Permission.
 
 ## Import
 

@@ -40,12 +40,28 @@ This data source has no arguments
 
 The following attributes are exported:
 
-- `agent_pools` - A list of existing agent pools in your Azure DevOps Organization with the following details about every agent pool:
-  - `name` - The name of the agent pool
-  - `pool_type` - Specifies whether the agent pool type is Automation or Deployment.
-  - `auto_provision` - Specifies whether or not a queue should be automatically provisioned for each project collection.
-  - `auto_update` - Specifies whether or not agents within the pool should be automatically updated.
+* `agent_pools` - An `agent_pools` blocks as documented below. A list of existing agent pools in your Azure DevOps Organization with the following details about every agent pool:
+
+---
+
+An `agent_pools` block supports the following:
+
+* `id` - The ID of the agent pool.
+
+* `name` - The name of the agent pool. 
+
+* `pool_type` - Specifies whether the agent pool type is Automation or Deployment.
+
+* `auto_provision` - Specifies whether or not a queue should be automatically provisioned for each project collection.
+
+* `auto_update` - Specifies whether or not agents within the pool should be automatically updated. 
 
 ## Relevant Links
 
-- [Azure DevOps Service REST API 7.0 - Agent Pools - Get](https://docs.microsoft.com/en-us/rest/api/azure/devops/distributedtask/pools/get?view=azure-devops-rest-7.0)
+- [Azure DevOps Service REST API 7.1 - Agent Pools - Get](https://docs.microsoft.com/en-us/rest/api/azure/devops/distributedtask/pools/get?view=azure-devops-rest-7.1)
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `read` - (Defaults to 5 minute) Used when retrieving the Agent Pools.

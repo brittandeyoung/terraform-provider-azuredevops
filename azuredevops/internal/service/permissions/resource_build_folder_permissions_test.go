@@ -12,13 +12,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/build"
 	"github.com/microsoft/terraform-provider-azuredevops/azdosdkmocks"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 /**
@@ -29,8 +29,10 @@ var buildFolderProjectID = "9083e944-8e9e-405e-960a-c80180aa71e6"
 
 var buildFolderToken = fmt.Sprintf("%s", buildFolderProjectID)
 
-var buildFolderPath = "a/b/c"
-var buildFolderTokenPath = fmt.Sprintf("%s/%s", buildFolderProjectID, buildFolderPath)
+var (
+	buildFolderPath      = "a/b/c"
+	buildFolderTokenPath = fmt.Sprintf("%s/%s", buildFolderProjectID, buildFolderPath)
+)
 
 func TestBuildFolderPermissions_CreateBuildFolderToken(t *testing.T) {
 	ctrl := gomock.NewController(t)

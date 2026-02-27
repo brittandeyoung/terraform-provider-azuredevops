@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
@@ -17,13 +16,16 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var dockerRegistryTestServiceEndpointID = uuid.New()
-var dockerRegistryRandomServiceEndpointProjectID = uuid.New()
-var dockerRegistryTestServiceEndpointProjectID = &dockerRegistryRandomServiceEndpointProjectID
+var (
+	dockerRegistryTestServiceEndpointID          = uuid.New()
+	dockerRegistryRandomServiceEndpointProjectID = uuid.New()
+	dockerRegistryTestServiceEndpointProjectID   = &dockerRegistryRandomServiceEndpointProjectID
+)
 
-var dockerRegistryTestServiceEndpoint = serviceendpoint.ServiceEndpoint{ //todo change
+var dockerRegistryTestServiceEndpoint = serviceendpoint.ServiceEndpoint{ // todo change
 	Authorization: &serviceendpoint.EndpointAuthorization{
 		Parameters: &map[string]string{
 			"username": "DH_TEST_username",
@@ -56,12 +58,13 @@ var dockerRegistryTestServiceEndpoint = serviceendpoint.ServiceEndpoint{ //todo 
 // verifies that the flatten/expand round trip yields the same service endpoint
 func TestServiceEndpointDockerRegistry_ExpandFlatten_Roundtrip(t *testing.T) {
 	resourceData := schema.TestResourceDataRaw(t, ResourceServiceEndpointDockerRegistry().Schema, nil)
-	flattenServiceEndpointDockerRegistry(resourceData, &dockerRegistryTestServiceEndpoint, dockerRegistryTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*dockerRegistryTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointDockerRegistry(resourceData, &dockerRegistryTestServiceEndpoint)
 
-	serviceEndpointAfterRoundTrip, projectID, err := expandServiceEndpointDockerRegistry(resourceData)
+	serviceEndpointAfterRoundTrip, err := expandServiceEndpointDockerRegistry(resourceData)
 
 	require.Equal(t, dockerRegistryTestServiceEndpoint, *serviceEndpointAfterRoundTrip)
-	require.Equal(t, dockerRegistryTestServiceEndpointProjectID, projectID)
+	require.Equal(t, dockerRegistryTestServiceEndpointProjectID, (*serviceEndpointAfterRoundTrip.ServiceEndpointProjectReferences)[0].ProjectReference.Id)
 	require.Nil(t, err)
 }
 
@@ -72,7 +75,8 @@ func TestServiceEndpointDockerRegistry_Create_DoesNotSwallowError(t *testing.T) 
 
 	r := ResourceServiceEndpointDockerRegistry()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointDockerRegistry(resourceData, &dockerRegistryTestServiceEndpoint, dockerRegistryTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*dockerRegistryTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointDockerRegistry(resourceData, &dockerRegistryTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -95,7 +99,8 @@ func TestServiceEndpointDockerRegistry_Read_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointDockerRegistry()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointDockerRegistry(resourceData, &dockerRegistryTestServiceEndpoint, dockerRegistryTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*dockerRegistryTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointDockerRegistry(resourceData, &dockerRegistryTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -122,7 +127,8 @@ func TestServiceEndpointDockerRegistry_Delete_DoesNotSwallowError(t *testing.T) 
 
 	r := ResourceServiceEndpointDockerRegistry()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointDockerRegistry(resourceData, &dockerRegistryTestServiceEndpoint, dockerRegistryTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*dockerRegistryTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointDockerRegistry(resourceData, &dockerRegistryTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -151,7 +157,8 @@ func TestServiceEndpointDockerRegistry_Update_DoesNotSwallowError(t *testing.T) 
 
 	r := ResourceServiceEndpointDockerRegistry()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointDockerRegistry(resourceData, &dockerRegistryTestServiceEndpoint, dockerRegistryTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*dockerRegistryTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointDockerRegistry(resourceData, &dockerRegistryTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}

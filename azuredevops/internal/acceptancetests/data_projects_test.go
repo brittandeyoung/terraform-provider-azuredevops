@@ -1,14 +1,10 @@
-//go:build (all || core || data_sources || resource_project || data_projects) && (!data_sources || !exclude_data_projects)
-// +build all core data_sources resource_project data_projects
-// +build !data_sources !exclude_data_projects
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -62,10 +58,10 @@ data "azuredevops_projects" "test" {
 }
 
 func hclDataSourceProjectsEmptyResult() string {
-	return fmt.Sprintf(`
+	return `
 data "azuredevops_projects" "test" {
   name  = "invalid_name"
   state = "wellFormed"
 }
-`)
+`
 }

@@ -8,11 +8,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/pipelineschecksextras"
+	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/sdk/pipelineschecksextras"
 )
 
-var evaluateBranchProtectionDefVersion = "0.0.1"
-var evaluateBranchProtectionDefId = "86b05a0c-73e6-4f7d-b3cf-e38f3b39a75b"
+var (
+	evaluateBranchProtectionDefVersion = "0.0.1"
+	evaluateBranchProtectionDefId      = "86b05a0c-73e6-4f7d-b3cf-e38f3b39a75b"
+)
 
 var evaluateBranchProtectionDef = map[string]interface{}{
 	"id":      evaluateBranchProtectionDefId,
@@ -20,7 +22,7 @@ var evaluateBranchProtectionDef = map[string]interface{}{
 	"version": evaluateBranchProtectionDefVersion,
 }
 
-// ResourceBranchControlCheck schema and implementation for branch check resources
+// ResourceCheckBranchControl ResourceBranchControlCheck schema and implementation for branch check resources
 func ResourceCheckBranchControl() *schema.Resource {
 	r := genBaseCheckResource(flattenBranchControlCheck, expandBranchControlCheck)
 
@@ -117,8 +119,6 @@ func flattenBranchControlCheck(d *schema.ResourceData, branchControlCheck *pipel
 				return err
 			}
 			d.Set("ignore_unknown_protection_status", value)
-		} else {
-			return fmt.Errorf("allowUnknownStatusBranch input not found")
 		}
 	} else {
 		return fmt.Errorf("inputs not found")
@@ -132,10 +132,14 @@ func flattenBranchControlCheck(d *schema.ResourceData, branchControlCheck *pipel
 }
 
 func expandBranchControlCheck(d *schema.ResourceData) (*pipelineschecksextras.CheckConfiguration, string, error) {
+	verifyBranchProtection := d.Get("verify_branch_protection").(bool)
 	inputs := map[string]interface{}{
 		"allowedBranches":          d.Get("allowed_branches").(string),
-		"ensureProtectionOfBranch": strconv.FormatBool(d.Get("verify_branch_protection").(bool)),
-		"allowUnknownStatusBranch": strconv.FormatBool(d.Get("ignore_unknown_protection_status").(bool)),
+		"ensureProtectionOfBranch": strconv.FormatBool(verifyBranchProtection),
+	}
+
+	if verifyBranchProtection {
+		inputs["allowUnknownStatusBranch"] = strconv.FormatBool(d.Get("ignore_unknown_protection_status").(bool))
 	}
 
 	settings := map[string]interface{}{}

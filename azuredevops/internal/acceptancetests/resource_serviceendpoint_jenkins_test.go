@@ -1,14 +1,10 @@
-//go:build (all || resource_serviceendpoint_jenkins) && !exclude_serviceendpoints
-// +build all resource_serviceendpoint_jenkins
-// +build !exclude_serviceendpoints
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -128,13 +124,13 @@ func TestAccServiceEndpointJenkins_RequiresImportErrorStepUsernamePassword(t *te
 func hclSvcEndpointJenkinsResourceBasicUsernamePassword(projectName string, serviceEndpointName string, description string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_jenkins" "test" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%s"
-	username			   = "u"
-	password			   = "redacted"
-	url			   		   = "http://url.com/1"
-	description 		   = "%s"
-	accept_untrusted_certs  = false
+  project_id             = azuredevops_project.project.id
+  service_endpoint_name  = "%s"
+  username               = "u"
+  password               = "redacted"
+  url                    = "http://url.com/1"
+  description            = "%s"
+  accept_untrusted_certs = false
 }`, serviceEndpointName, description)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -144,13 +140,13 @@ resource "azuredevops_serviceendpoint_jenkins" "test" {
 func hclSvcEndpointJenkinsResourceCompleteUsernamePassword(projectName string, serviceEndpointName string, description string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_jenkins" "test" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%s"
-	description            = "%s"
-	username			   = "u"
-	password			   = "redacted"
-	url			   		   = "https://url.com/1"
-	accept_untrusted_certs  = false
+  project_id             = azuredevops_project.project.id
+  service_endpoint_name  = "%s"
+  description            = "%s"
+  username               = "u"
+  password               = "redacted"
+  url                    = "https://url.com/1"
+  accept_untrusted_certs = false
 }`, serviceEndpointName, description)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -160,13 +156,13 @@ resource "azuredevops_serviceendpoint_jenkins" "test" {
 func hclSvcEndpointJenkinsResourceUpdateUsernamePassword(projectName string, serviceEndpointName string, description string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_jenkins" "test" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%s"
-	description            = "%s"
-	username			   = "u2"
-	password			   = "redacted2"
-	url			   		   = "https://url.com/2"
-	accept_untrusted_certs  = false
+  project_id             = azuredevops_project.project.id
+  service_endpoint_name  = "%s"
+  description            = "%s"
+  username               = "u2"
+  password               = "redacted2"
+  url                    = "https://url.com/2"
+  accept_untrusted_certs = false
 }`, serviceEndpointName, description)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -178,13 +174,13 @@ func hclSvcEndpointJenkinsResourceRequiresImportUsernamePassword(projectName str
 	return fmt.Sprintf(`
 %s
 resource "azuredevops_serviceendpoint_jenkins" "import" {
-  project_id                = azuredevops_serviceendpoint_jenkins.test.project_id
-  service_endpoint_name = azuredevops_serviceendpoint_jenkins.test.service_endpoint_name
+  project_id             = azuredevops_serviceendpoint_jenkins.test.project_id
+  service_endpoint_name  = azuredevops_serviceendpoint_jenkins.test.service_endpoint_name
   description            = azuredevops_serviceendpoint_jenkins.test.description
-  url          	= azuredevops_serviceendpoint_jenkins.test.url
-  accept_untrusted_certs  = false
-  username			   = "u"
-  password			   = "redacted"
+  url                    = azuredevops_serviceendpoint_jenkins.test.url
+  accept_untrusted_certs = false
+  username               = "u"
+  password               = "redacted"
 }
 `, template)
 }

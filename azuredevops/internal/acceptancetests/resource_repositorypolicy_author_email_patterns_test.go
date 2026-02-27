@@ -1,14 +1,10 @@
-//go:build (all || resource_repositorypolicy_author_email_patterns) && !resource_repositorypolicy_author_email_patterns
-// +build all resource_repositorypolicy_author_email_patterns
-// +build !resource_repositorypolicy_author_email_patterns
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 

@@ -58,6 +58,11 @@ func DataServiceEndpointAzureRM() *schema.Resource {
 			Computed: true,
 		},
 
+		"server_url": {
+			Type:     schema.TypeString,
+			Computed: true,
+		},
+
 		"service_principal_id": {
 			Type:     schema.TypeString,
 			Computed: true,
@@ -77,15 +82,19 @@ func DataServiceEndpointAzureRM() *schema.Resource {
 }
 
 func dataSourceServiceEndpointAzureRMRead(d *schema.ResourceData, m interface{}) error {
-	serviceEndpoint, projectID, err := dataSourceGetBaseServiceEndpoint(d, m)
+	serviceEndpoint, err := dataSourceGetBaseServiceEndpoint(d, m)
 	if err != nil {
 		return err
 	}
-	if serviceEndpoint != nil {
+	if serviceEndpoint != nil && serviceEndpoint.Id != nil {
+		if err = checkServiceConnection(serviceEndpoint); err != nil {
+			return err
+		}
+
 		(*serviceEndpoint.Data)["creationMode"] = ""
+		flattenServiceEndpointAzureRM(d, serviceEndpoint)
 		d.Set("service_endpoint_id", serviceEndpoint.Id.String())
-		flattenServiceEndpointAzureRM(d, serviceEndpoint, projectID.String())
 		return nil
 	}
-	return fmt.Errorf(" Looking up service endpoint!")
+	return fmt.Errorf("Looking up service endpoint!")
 }

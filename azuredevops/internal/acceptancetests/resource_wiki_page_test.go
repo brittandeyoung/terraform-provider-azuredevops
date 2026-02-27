@@ -1,7 +1,3 @@
-//go:build (all || wiki || resource_wiki) && !exclude_resource_wiki
-// +build all wiki resource_wiki
-// +build !exclude_resource_wiki
-
 package acceptancetests
 
 import (
@@ -9,7 +5,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -104,7 +100,7 @@ func TestAccWikiPageResource_requireImportError(t *testing.T) {
 			},
 			{
 				Config:      hclProjectWikiPageImport(projectName),
-				ExpectError: regexp.MustCompile(fmt.Sprintf(`The page '/path' specified in the add operation already exists in the wiki. Please specify a new page path.`)),
+				ExpectError: regexp.MustCompile(`The page '/path' specified in the add operation already exists in the wiki. Please specify a new page path.`),
 			},
 		},
 	})

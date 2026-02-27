@@ -6,13 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/service/serviceendpoint/migration"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/tfhelper"
 )
@@ -98,10 +96,18 @@ func ResourceServiceEndpointAzureRM() *schema.Resource {
 						Description: "The service principal id which should be used.",
 					},
 					"serviceprincipalkey": {
-						Type:        schema.TypeString,
-						Optional:    true,
-						Description: "The service principal secret which should be used.",
-						Sensitive:   true,
+						Type:          schema.TypeString,
+						Optional:      true,
+						ConflictsWith: []string{"credentials.0.serviceprincipalcertificate"},
+						Sensitive:     true,
+						ValidateFunc:  validation.StringIsNotEmpty,
+					},
+					"serviceprincipalcertificate": {
+						Type:          schema.TypeString,
+						Optional:      true,
+						ConflictsWith: []string{"credentials.0.serviceprincipalkey"},
+						Sensitive:     true,
+						ValidateFunc:  validation.StringIsNotEmpty,
 					},
 				},
 			},
@@ -113,7 +119,7 @@ func ResourceServiceEndpointAzureRM() *schema.Resource {
 			ForceNew:     true,
 			Description:  "Environment (Azure Cloud type)",
 			Default:      "AzureCloud",
-			ValidateFunc: validation.StringInSlice([]string{"AzureCloud", "AzureChinaCloud", "AzureUSGovernment", "AzureGermanCloud"}, false),
+			ValidateFunc: validation.StringInSlice([]string{"AzureCloud", "AzureChinaCloud", "AzureUSGovernment", "AzureGermanCloud", "AzureStack"}, false),
 		},
 
 		"service_endpoint_authentication_scheme": {
@@ -123,6 +129,14 @@ func ResourceServiceEndpointAzureRM() *schema.Resource {
 			Description:  "The AzureRM Service Endpoint Authentication Scheme, this can be 'WorkloadIdentityFederation', 'ManagedServiceIdentity' or 'ServicePrincipal'.",
 			Default:      "ServicePrincipal",
 			ValidateFunc: validation.StringInSlice([]string{"WorkloadIdentityFederation", "ManagedServiceIdentity", "ServicePrincipal"}, false),
+		},
+
+		"server_url": {
+			Type:         schema.TypeString,
+			Optional:     true,
+			Computed:     true,
+			ForceNew:     true,
+			ValidateFunc: validation.IsURLWithHTTPorHTTPS,
 		},
 
 		"workload_identity_federation_issuer": {
@@ -178,33 +192,34 @@ func ResourceServiceEndpointAzureRM() *schema.Resource {
 
 func resourceServiceEndpointAzureRMCreate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectID, err := expandServiceEndpointAzureRM(d)
+	serviceEndpoint, err := expandServiceEndpointAzureRM(d)
 	if err != nil {
 		return fmt.Errorf(errMsgTfConfigRead, err)
 	}
 
-	serviceEndPoint, err := createServiceEndpoint(d, clients, serviceEndpoint)
+	resp, err := createServiceEndpoint(d, clients, serviceEndpoint)
 	if err != nil {
 		return err
 	}
 
+	serviceEndpoint.Id = resp.Id
 	if shouldValidate(endpointFeatures(d)) {
-		if err := validateServiceEndpoint(clients, serviceEndpoint, converter.String(serviceEndPoint.Id.String()), endpointValidationTimeoutSeconds); err != nil {
+		if err := validateServiceEndpoint(clients, serviceEndpoint, d.Get("project_id").(string), endpointValidationTimeoutSeconds); err != nil {
 			if delErr := clients.ServiceEndpointClient.DeleteServiceEndpoint(
 				clients.Ctx,
 				serviceendpoint.DeleteServiceEndpointArgs{
 					ProjectIds: &[]string{
-						projectID.String(),
+						(*serviceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String(),
 					},
-					EndpointId: serviceEndPoint.Id,
+					EndpointId: resp.Id,
 				}); delErr != nil {
-				return fmt.Errorf(" Delete service endpoint error %v", delErr)
+				return fmt.Errorf("Delete service endpoint error %v", delErr)
 			}
 			return err
 		}
 	}
 
-	d.SetId(serviceEndPoint.Id.String())
+	d.SetId(resp.Id.String())
 	return resourceServiceEndpointAzureRMRead(d, m)
 }
 
@@ -216,60 +231,59 @@ func resourceServiceEndpointAzureRMRead(d *schema.ResourceData, m interface{}) e
 	}
 
 	serviceEndpoint, err := clients.ServiceEndpointClient.GetServiceEndpointDetails(clients.Ctx, *getArgs)
+	if isServiceEndpointDeleted(d, err, serviceEndpoint, getArgs) {
+		return nil
+	}
 	if err != nil {
-		if utils.ResponseWasNotFound(err) {
-			d.SetId("")
-			return nil
-		}
-		return fmt.Errorf(" looking up service endpoint given ID (%v) and project ID (%v): %v", getArgs.EndpointId, getArgs.Project, err)
+		return fmt.Errorf("looking up service endpoint given ID (%s) and project ID (%s): %v", getArgs.EndpointId, *getArgs.Project, err)
 	}
 
 	if serviceEndpoint == nil || serviceEndpoint.Id == nil {
 		d.SetId("")
 		return nil
 	}
-
 	d.Set("features", d.Get("features"))
 
-	flattenServiceEndpointAzureRM(d, serviceEndpoint, (*serviceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	if err = checkServiceConnection(serviceEndpoint); err != nil {
+		return err
+	}
+	flattenServiceEndpointAzureRM(d, serviceEndpoint)
 	return nil
 }
 
 func resourceServiceEndpointAzureRMUpdate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectID, err := expandServiceEndpointAzureRM(d)
+	serviceEndpoint, err := expandServiceEndpointAzureRM(d)
 	if err != nil {
 		return fmt.Errorf(errMsgTfConfigRead, err)
 	}
 
 	if shouldValidate(endpointFeatures(d)) {
-		if err := validateServiceEndpoint(clients, serviceEndpoint, converter.String(serviceEndpoint.Id.String()), endpointValidationTimeoutSeconds); err != nil {
+		if err := validateServiceEndpoint(clients, serviceEndpoint, d.Get("project_id").(string), endpointValidationTimeoutSeconds); err != nil {
 			return err
 		}
 	}
-	updatedServiceEndpoint, err := updateServiceEndpoint(clients, serviceEndpoint)
-
+	_, err = updateServiceEndpoint(clients, serviceEndpoint)
 	if err != nil {
-		return fmt.Errorf("Error updating service endpoint in Azure DevOps: %+v", err)
+		return fmt.Errorf("updating service endpoint in Azure DevOps: %+v", err)
 	}
 
-	flattenServiceEndpointAzureRM(d, updatedServiceEndpoint, projectID.String())
 	return resourceServiceEndpointAzureRMRead(d, m)
 }
 
 func resourceServiceEndpointAzureRMDelete(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectId, err := expandServiceEndpointAzureRM(d)
+	serviceEndpoint, err := expandServiceEndpointAzureRM(d)
 	if err != nil {
 		return fmt.Errorf(errMsgTfConfigRead, err)
 	}
 
-	return deleteServiceEndpoint(clients, projectId, serviceEndpoint.Id, d.Timeout(schema.TimeoutDelete))
+	return deleteServiceEndpoint(clients, serviceEndpoint, d.Timeout(schema.TimeoutDelete))
 }
 
 // Convert internal Terraform data structure to an AzDO data structure
-func expandServiceEndpointAzureRM(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, *uuid.UUID, error) {
-	serviceEndpoint, projectID := doBaseExpansion(d)
+func expandServiceEndpointAzureRM(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, error) {
+	serviceEndpoint := doBaseExpansion(d)
 
 	serviceEndPointAuthenticationScheme := EndpointAuthenticationScheme(d.Get("service_endpoint_authentication_scheme").(string))
 
@@ -287,7 +301,7 @@ func expandServiceEndpointAzureRM(d *schema.ResourceData) (*serviceendpoint.Serv
 	}
 
 	if err := validateScopeLevel(scopeLevelMap); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	var scope string
@@ -340,12 +354,19 @@ func expandServiceEndpointAzureRM(d *schema.ResourceData) (*serviceendpoint.Serv
 		if serviceEndpointCreationMode == Manual {
 			serviceEndpoint.Authorization = &serviceendpoint.EndpointAuthorization{
 				Parameters: &map[string]string{
-					"authenticationType":  "spnKey",
-					"serviceprincipalid":  credentials["serviceprincipalid"].(string),
-					"serviceprincipalkey": credentials["serviceprincipalkey"].(string),
-					"tenantid":            d.Get("azurerm_spn_tenantid").(string),
+					"serviceprincipalid": credentials["serviceprincipalid"].(string),
+					"tenantid":           d.Get("azurerm_spn_tenantid").(string),
 				},
 				Scheme: converter.String(string(serviceEndPointAuthenticationScheme)),
+			}
+
+			if spnKey := credentials["serviceprincipalkey"].(string); spnKey != "" {
+				(*serviceEndpoint.Authorization.Parameters)["authenticationType"] = "spnKey"
+				(*serviceEndpoint.Authorization.Parameters)["serviceprincipalkey"] = spnKey
+			}
+			if spnCert := credentials["serviceprincipalcertificate"].(string); spnCert != "" {
+				(*serviceEndpoint.Authorization.Parameters)["authenticationType"] = "spnCertificate"
+				(*serviceEndpoint.Authorization.Parameters)["servicePrincipalCertificate"] = spnCert
 			}
 		}
 
@@ -379,7 +400,7 @@ func expandServiceEndpointAzureRM(d *schema.ResourceData) (*serviceendpoint.Serv
 		if serviceEndpointCreationMode == Manual {
 			servicePrincipalId := credentials["serviceprincipalid"].(string)
 			if servicePrincipalId == "" {
-				return nil, nil, fmt.Errorf("serviceprincipalid is required for WorkloadIdentityFederation")
+				return nil, fmt.Errorf("serviceprincipalid is required for WorkloadIdentityFederation")
 			}
 			serviceEndpoint.Authorization = &serviceendpoint.EndpointAuthorization{
 				Parameters: &map[string]string{
@@ -406,6 +427,12 @@ func expandServiceEndpointAzureRM(d *schema.ResourceData) (*serviceendpoint.Serv
 		endpointUrl = "https://management.usgovcloudapi.net/"
 	case "AzureGermanCloud":
 		endpointUrl = "https://management.microsoftazure.de"
+	case "AzureStack":
+		if serverUrl, ok := d.GetOk("server_url"); ok {
+			endpointUrl = serverUrl.(string)
+		} else {
+			return nil, fmt.Errorf("`server_url` is required when `environment` is `AzureStack`")
+		}
 	}
 
 	if scopeLevel == "Subscription" || scopeLevel == "ResourceGroup" {
@@ -426,12 +453,12 @@ func expandServiceEndpointAzureRM(d *schema.ResourceData) (*serviceendpoint.Serv
 
 	serviceEndpoint.Type = converter.String("azurerm")
 	serviceEndpoint.Url = converter.String(endpointUrl)
-	return serviceEndpoint, projectID, nil
+	return serviceEndpoint, nil
 }
 
 // Convert AzDO data structure to internal Terraform data structure
-func flattenServiceEndpointAzureRM(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint, projectID string) {
-	doBaseFlattening(d, serviceEndpoint, projectID)
+func flattenServiceEndpointAzureRM(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint) {
+	doBaseFlattening(d, serviceEndpoint)
 	scope := (*serviceEndpoint.Authorization.Parameters)["scope"]
 
 	serviceEndPointType := EndpointAuthenticationScheme(*serviceEndpoint.Authorization.Scheme)
@@ -449,12 +476,17 @@ func flattenServiceEndpointAzureRM(d *schema.ResourceData, serviceEndpoint *serv
 		if _, ok := d.GetOk("credentials"); !ok {
 			credentials := make(map[string]interface{})
 			credentials["serviceprincipalid"] = (*serviceEndpoint.Authorization.Parameters)["serviceprincipalid"]
-			credentials["serviceprincipalkey"] = d.Get("credentials.0.serviceprincipalkey").(string)
+			credentials["serviceprincipalkey"] = ""
+			credentials["serviceprincipalcertificate"] = ""
 			d.Set("credentials", []interface{}{credentials})
 		}
 	}
 
-	s := strings.SplitN(scope, "/", -1)
+	if serviceEndpoint.Url != nil {
+		d.Set("server_url", serviceEndpoint.Url)
+	}
+
+	s := strings.Split(scope, "/")
 	if len(s) == 5 {
 		d.Set("resource_group", s[4])
 	}
@@ -487,7 +519,7 @@ func validateScopeLevel(scopeMap map[string][]string) error {
 	var mgmtElementCount int
 	for _, ele := range scopeMap["managementGroup"] {
 		if ele == "" {
-			mgmtElementCount = mgmtElementCount + 1
+			mgmtElementCount++
 		}
 	}
 

@@ -1,18 +1,14 @@
-//go:build (all || resource_serviceendpoint_aws) && !exclude_serviceendpoints
-// +build all resource_serviceendpoint_aws
-// +build !exclude_serviceendpoints
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
-func TestAccServiceEndpointAws_Basic(t *testing.T) {
+func TestAccServiceEndpointAws_basic(t *testing.T) {
 	projectName := testutils.GenerateResourceName()
 	serviceEndpointName := testutils.GenerateResourceName()
 
@@ -31,13 +27,14 @@ func TestAccServiceEndpointAws_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(tfSvcEpNode, "service_endpoint_name", serviceEndpointName),
 					resource.TestCheckResourceAttr(tfSvcEpNode, "access_key_id", "0000"),
 					resource.TestCheckResourceAttr(tfSvcEpNode, "secret_access_key", "secretkey"),
+					resource.TestCheckResourceAttr(tfSvcEpNode, "use_oidc", "false"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccServiceEndpointAws_Complete(t *testing.T) {
+func TestAccServiceEndpointAws_complete(t *testing.T) {
 	projectName := testutils.GenerateResourceName()
 	serviceEndpointName := testutils.GenerateResourceName()
 	description := testutils.GenerateResourceName()
@@ -66,6 +63,7 @@ func TestAccServiceEndpointAws_Complete(t *testing.T) {
 					resource.TestCheckResourceAttr(tfSvcEpNode, "role_to_assume", rta),
 					resource.TestCheckResourceAttr(tfSvcEpNode, "role_session_name", rsn),
 					resource.TestCheckResourceAttr(tfSvcEpNode, "external_id", externalId),
+					resource.TestCheckResourceAttr(tfSvcEpNode, "use_oidc", "false"),
 				),
 			},
 		},
@@ -106,6 +104,32 @@ func TestAccServiceEndpointAws_update(t *testing.T) {
 	})
 }
 
+func TestAccServiceEndpointAws_oidc(t *testing.T) {
+	projectName := testutils.GenerateResourceName()
+	serviceEndpointName := testutils.GenerateResourceName()
+
+	resourceType := "azuredevops_serviceendpoint_aws"
+	tfSvcEpNode := resourceType + ".test"
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testutils.PreCheck(t, nil) },
+		Providers:    testutils.GetProviders(),
+		CheckDestroy: testutils.CheckServiceEndpointDestroyed(resourceType),
+		Steps: []resource.TestStep{
+			{
+				Config: hclSvcEndpointAwsResourceOidc(projectName, serviceEndpointName),
+				Check: resource.ComposeTestCheckFunc(
+					testutils.CheckServiceEndpointExistsWithName(tfSvcEpNode, serviceEndpointName),
+					resource.TestCheckResourceAttrSet(tfSvcEpNode, "project_id"),
+					resource.TestCheckResourceAttr(tfSvcEpNode, "service_endpoint_name", serviceEndpointName),
+					resource.TestCheckResourceAttr(tfSvcEpNode, "access_key_id", "0000"),
+					resource.TestCheckResourceAttr(tfSvcEpNode, "secret_access_key", "secretkey"),
+					resource.TestCheckResourceAttr(tfSvcEpNode, "use_oidc", "true"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccServiceEndpointAws_requiresImportErrorStep(t *testing.T) {
 	projectName := testutils.GenerateResourceName()
 	serviceEndpointName := testutils.GenerateResourceName()
@@ -138,48 +162,66 @@ func hclSvcEndpointAwsResource(projectName string, serviceEndpointName string) s
 }
 
 func hclSvcEndpointAwsResourceUpdate(projectName string, serviceEndpointName string, description string) string {
-	serviceEndpointResource := fmt.Sprintf(`
-	resource "azuredevops_serviceendpoint_aws" "test" {
-		project_id             = azuredevops_project.project.id
-		access_key_id          = "0000"
-		secret_access_key      = "secretkey"
-		service_endpoint_name  = "%s"
-		description            = "%s"
-	}`, serviceEndpointName, description)
-
-	projectResource := testutils.HclProjectResource(projectName)
-	return fmt.Sprintf("%s\n%s", projectResource, serviceEndpointResource)
+	return fmt.Sprintf(`
+resource "azuredevops_project" "project" {
+  name = "%s"
+}
+resource "azuredevops_serviceendpoint_aws" "test" {
+  project_id            = azuredevops_project.project.id
+  access_key_id         = "0000"
+  secret_access_key     = "secretkey"
+  service_endpoint_name = "%s"
+  description           = "%s"
+  use_oidc              = false
+}`, projectName, serviceEndpointName, description)
 }
 
 func hclSvcEndpointAwsResourceComplete(projectName string, serviceEndpointName string, description string, sessionToken string, rta string, rsn string, externalId string) string {
-	serviceEndpointResource := fmt.Sprintf(`
-	resource "azuredevops_serviceendpoint_aws" "test" {
-		project_id             = azuredevops_project.project.id
-		access_key_id          = "0000"
-		secret_access_key      = "secretkey"
-		service_endpoint_name  = "%s"
-		description            = "%s"
+	return fmt.Sprintf(`
+resource "azuredevops_project" "project" {
+  name = "%s"
+}
+resource "azuredevops_serviceendpoint_aws" "test" {
+  project_id            = azuredevops_project.project.id
+  access_key_id         = "0000"
+  secret_access_key     = "secretkey"
+  service_endpoint_name = "%s"
+  description           = "%s"
 
-		session_token = "%s"
-		role_to_assume = "%s"
-		role_session_name = "%s"
-		external_id = "%s"
-	}`, serviceEndpointName, description, sessionToken, rta, rsn, externalId)
+  session_token     = "%s"
+  role_to_assume    = "%s"
+  role_session_name = "%s"
+  external_id       = "%s"
+  use_oidc          = false
+}`, projectName, serviceEndpointName, description, sessionToken, rta, rsn, externalId)
+}
 
-	projectResource := testutils.HclProjectResource(projectName)
-	return fmt.Sprintf("%s\n%s", projectResource, serviceEndpointResource)
+func hclSvcEndpointAwsResourceOidc(projectName, serviceEndpointName string) string {
+	return fmt.Sprintf(`
+resource "azuredevops_project" "project" {
+  name = "%s"
+}
+resource "azuredevops_serviceendpoint_aws" "test" {
+  project_id            = azuredevops_project.project.id
+  access_key_id         = "0000"
+  secret_access_key     = "secretkey"
+  service_endpoint_name = "%s"
+  use_oidc              = true
+}`, projectName, serviceEndpointName)
 }
 
 func hclSvcEndpointAwsResourceRequiresImport(projectName string, serviceEndpointName string) string {
 	template := hclSvcEndpointAwsResource(projectName, serviceEndpointName)
 	return fmt.Sprintf(`
-	%s
-	resource "azuredevops_serviceendpoint_aws" "import" {
-	project_id             = azuredevops_serviceendpoint_aws.test.project_id
-	access_key_id          = "0000"
-	secret_access_key      = "secretkey"
-	service_endpoint_name  = azuredevops_serviceendpoint_aws.test.service_endpoint_name
-	description            = azuredevops_serviceendpoint_aws.test.description
-	}
-	`, template)
+%s
+
+resource "azuredevops_serviceendpoint_aws" "import" {
+  project_id            = azuredevops_serviceendpoint_aws.test.project_id
+  access_key_id         = "0000"
+  secret_access_key     = "secretkey"
+  service_endpoint_name = azuredevops_serviceendpoint_aws.test.service_endpoint_name
+  description           = azuredevops_serviceendpoint_aws.test.description
+  use_oidc              = azuredevops_serviceendpoint_aws.test.use_oidc
+}
+`, template)
 }

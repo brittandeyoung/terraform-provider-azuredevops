@@ -10,26 +10,30 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/terraform-provider-azuredevops/azdosdkmocks"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/pipelineschecksextras"
+	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/sdk/pipelineschecksextras"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var ApprovalCheckID = 123456789
-var ApprovalEndpointID = uuid.New().String()
-var ApprovalCheckProjectID = uuid.New().String()
-var ApprovalCheckTestProjectID = &ApprovalCheckProjectID
+var (
+	ApprovalCheckID            = 123456789
+	ApprovalEndpointID         = uuid.New().String()
+	ApprovalCheckProjectID     = uuid.New().String()
+	ApprovalCheckTestProjectID = &ApprovalCheckProjectID
+)
 
-var endpointTypeApproval = "endpoint"
-var endpointResourceApproval = pipelineschecksextras.Resource{
-	Id:   &ApprovalEndpointID,
-	Type: &endpointTypeApproval,
-}
+var (
+	endpointTypeApproval     = "endpoint"
+	endpointResourceApproval = pipelineschecksextras.Resource{
+		Id:   &ApprovalEndpointID,
+		Type: &endpointTypeApproval,
+	}
+)
 
 var approver = map[string]interface{}{
 	"id": "xxxx",

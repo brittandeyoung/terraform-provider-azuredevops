@@ -7,7 +7,7 @@ description: |-
 
 # azuredevops_git_permissions
 
-Manages permissions for Git repositories. 
+Manages permissions for Git repositories.
 
 ~> **Note** Permissions can be assigned to group principals and not to single user principals.
 
@@ -200,38 +200,55 @@ resource "azuredevops_git_permissions" "example-branch-permissions" {
 The following arguments are supported:
 
 * `project_id` - (Required) The ID of the project to assign the permissions.
-* `repository_id` - (Optional) The ID of the GIT repository to assign the permissions
-* `branch_name` - (Optional) The name of the branch to assign the permissions. 
-
-   ~> **Note** to assign permissions to a branch, the `repository_id` must be set as well.
 
 * `principal` - (Required) The **group** principal to assign the permissions.
+
+  ~> **Note**  The `descriptor` of the user/group not the `ID`. Some resources in this provider use the `descriptor` 
+      as resource ID. It is recommended to check before use.
+
+* `permissions` - (Required) the permissions to assign. The following permissions are available
+
+  | Permissions             | Description                                            |
+  |-------------------------|--------------------------------------------------------|
+  | Administer              | Administer                                             |
+  | GenericRead             | Read                                                   |
+  | GenericContribute       | Contribute                                             |
+  | ForcePush               | Force push (rewrite history, delete branches and tags) |
+  | CreateBranch            | Create branch                                          |
+  | CreateTag               | Create tag                                             |
+  | ManageNote              | Manage notes                                           |
+  | PolicyExempt            | Bypass policies when pushing                           |
+  | CreateRepository        | Create repository                                      |
+  | DeleteRepository        | Delete repository                                      |
+  | RenameRepository        | Rename repository                                      |
+  | EditPolicies            | Edit policies                                          |
+  | RemoveOthersLocks       | Remove others' locks                                   |
+  | ManagePermissions       | Manage permissions                                     |
+  | PullRequestContribute   | Contribute to pull requests                            |
+  | PullRequestBypassPolicy | Bypass policies when completing pull requests          |
+
+---
+
+* `repository_id` - (Optional) The ID of the GIT repository to assign the permissions
+
+* `branch_name` - (Optional) The name of the branch to assign the permissions.
+
+   ~> **Note** To assign permissions to a branch, the `repository_id` must be set as well.
+
 * `replace` - (Optional) Replace (`true`) or merge (`false`) the permissions. Default: `true`
-* `permissions` - (Required) the permissions to assign. The follwing permissions are available
-
-
-| Permissions             | Description                                            |
-|-------------------------|--------------------------------------------------------|
-| Administer              | Administer                                             |
-| GenericRead             | Read                                                   |
-| GenericContribute       | Contribute                                             |
-| ForcePush               | Force push (rewrite history, delete branches and tags) |
-| CreateBranch            | Create branch                                          |
-| CreateTag               | Create tag                                             |
-| ManageNote              | Manage notes                                           |
-| PolicyExempt            | Bypass policies when pushing                           |
-| CreateRepository        | Create repository                                      |
-| DeleteRepository        | Delete repository                                      |
-| RenameRepository        | Rename repository                                      |
-| EditPolicies            | Edit policies                                          |
-| RemoveOthersLocks       | Remove others' locks                                   |
-| ManagePermissions       | Manage permissions                                     |
-| PullRequestContribute   | Contribute to pull requests                            |
-| PullRequestBypassPolicy | Bypass policies when completing pull requests          |
 
 ## Relevant Links
 
 * [Azure DevOps Service REST API 7.0 - Security](https://docs.microsoft.com/en-us/rest/api/azure/devops/security/?view=azure-devops-rest-7.0)
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 10 minutes) Used when creating the Git Permission.
+* `read` - (Defaults to 5 minute) Used when retrieving the Git Permission.
+* `update` - (Defaults to 10 minutes) Used when updating the Git Permission.
+* `delete` - (Defaults to 10 minutes) Used when deleting the Git Permission.
 
 ## Import
 

@@ -6,25 +6,29 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/terraform-provider-azuredevops/azdosdkmocks"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/pipelineschecksextras"
+	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/sdk/pipelineschecksextras"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var requiredTemplateCheckID = 123456789
-var requiredTemplateEndpointID = uuid.New().String()
-var requiredTemplateCheckProjectID = uuid.New().String()
+var (
+	requiredTemplateCheckID        = 123456789
+	requiredTemplateEndpointID     = uuid.New().String()
+	requiredTemplateCheckProjectID = uuid.New().String()
+)
 
-var requiredTemplateTestEndpointType = "endpoint"
-var requiredTemplateTestEndpointResource = pipelineschecksextras.Resource{
-	Id:   &requiredTemplateEndpointID,
-	Type: &requiredTemplateTestEndpointType,
-}
+var (
+	requiredTemplateTestEndpointType     = "endpoint"
+	requiredTemplateTestEndpointResource = pipelineschecksextras.Resource{
+		Id:   &requiredTemplateEndpointID,
+		Type: &requiredTemplateTestEndpointType,
+	}
+)
 
 var requiredTemplates = []interface{}{
 	map[string]interface{}{
@@ -75,7 +79,7 @@ func TestCheckRequiredTemplate_Create_DoesNotSwallowError(t *testing.T) {
 	clients := &client.AggregatedClient{PipelinesChecksClientExtras: pipelinesChecksClient, Ctx: context.Background()}
 
 	expectedArgs := pipelineschecksextras.AddCheckConfigurationArgs{Configuration: &requiredTemplateCheckTest, Project: &requiredTemplateCheckProjectID}
-	//expectedArgs = requiredTemplateCheckTest.Id
+	// expectedArgs = requiredTemplateCheckTest.Id
 	pipelinesChecksClient.
 		EXPECT().
 		AddCheckConfiguration(clients.Ctx, expectedArgs).

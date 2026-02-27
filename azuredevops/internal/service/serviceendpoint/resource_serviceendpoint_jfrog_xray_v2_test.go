@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
@@ -17,11 +16,14 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var xrayV2TestServiceEndpointIDpassword = uuid.New()
-var xrayV2RandomServiceEndpointProjectIDpassword = uuid.New()
-var xrayV2TestServiceEndpointProjectIDpassword = &artifactoryRandomServiceEndpointProjectIDpassword
+var (
+	xrayV2TestServiceEndpointIDpassword          = uuid.New()
+	xrayV2RandomServiceEndpointProjectIDpassword = uuid.New()
+	xrayV2TestServiceEndpointProjectIDpassword   = &artifactoryRandomServiceEndpointProjectIDpassword
+)
 
 var xrayV2TestServiceEndpointPassword = serviceendpoint.ServiceEndpoint{
 	Authorization: &serviceendpoint.EndpointAuthorization{
@@ -48,9 +50,11 @@ var xrayV2TestServiceEndpointPassword = serviceendpoint.ServiceEndpoint{
 	},
 }
 
-var xrayV2TestServiceEndpointID = uuid.New()
-var xrayV2RandomServiceEndpointProjectID = uuid.New()
-var xrayV2TestServiceEndpointProjectID = &artifactoryRandomServiceEndpointProjectID
+var (
+	xrayV2TestServiceEndpointID          = uuid.New()
+	xrayV2RandomServiceEndpointProjectID = uuid.New()
+	xrayV2TestServiceEndpointProjectID   = &artifactoryRandomServiceEndpointProjectID
+)
 
 var xrayV2TestServiceEndpoint = serviceendpoint.ServiceEndpoint{
 	Authorization: &serviceendpoint.EndpointAuthorization{
@@ -81,15 +85,17 @@ func testServiceEndpointxrayV2_ExpandFlatten_Roundtrip(t *testing.T, ep *service
 	for _, ep := range []*serviceendpoint.ServiceEndpoint{ep, ep} {
 
 		resourceData := schema.TestResourceDataRaw(t, ResourceServiceEndpointJFrogXRayV2().Schema, nil)
-		flattenServiceEndpointArtifactory(resourceData, ep, id.String())
+		resourceData.Set("project_id", (*ep.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+		flattenServiceEndpointArtifactory(resourceData, ep)
 
-		serviceEndpointAfterRoundTrip, projectID, err := expandServiceEndpointJFrogXRayV2(resourceData)
+		serviceEndpointAfterRoundTrip, err := expandServiceEndpointJFrogXRayV2(resourceData)
 		require.Nil(t, err)
 		require.Equal(t, *ep, *serviceEndpointAfterRoundTrip)
-		require.Equal(t, id, projectID)
+		require.Equal(t, id, (*serviceEndpointAfterRoundTrip.ServiceEndpointProjectReferences)[0].ProjectReference.Id)
 
 	}
 }
+
 func TestServiceEndpointxrayV2_ExpandFlatten_RoundtripPassword(t *testing.T) {
 	testServiceEndpointxrayV2_ExpandFlatten_Roundtrip(t, &xrayV2TestServiceEndpointPassword, xrayV2TestServiceEndpointProjectIDpassword)
 }
@@ -105,7 +111,8 @@ func testServiceEndpointxrayV2_Create_DoesNotSwallowError(t *testing.T, ep *serv
 
 	r := ResourceServiceEndpointJFrogXRayV2()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointArtifactory(resourceData, ep, id.String())
+	resourceData.Set("project_id", (*ep.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointArtifactory(resourceData, ep)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -120,9 +127,11 @@ func testServiceEndpointxrayV2_Create_DoesNotSwallowError(t *testing.T, ep *serv
 	err := r.Create(resourceData, clients)
 	require.Contains(t, err.Error(), "CreateServiceEndpoint() Failed")
 }
+
 func TestServiceEndpointxrayV2_Create_DoesNotSwallowErrorToken(t *testing.T) {
 	testServiceEndpointxrayV2_Create_DoesNotSwallowError(t, &xrayV2TestServiceEndpoint, xrayV2TestServiceEndpointProjectID)
 }
+
 func TestServiceEndpointxrayV2_Create_DoesNotSwallowErrorPassword(t *testing.T) {
 	testServiceEndpointxrayV2_Create_DoesNotSwallowError(t, &xrayV2TestServiceEndpointPassword, xrayV2TestServiceEndpointProjectIDpassword)
 }
@@ -134,7 +143,8 @@ func testServiceEndpointxrayV2_Read_DoesNotSwallowError(t *testing.T, ep *servic
 
 	r := ResourceServiceEndpointJFrogXRayV2()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointArtifactory(resourceData, ep, id.String())
+	resourceData.Set("project_id", (*ep.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointArtifactory(resourceData, ep)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -152,9 +162,11 @@ func testServiceEndpointxrayV2_Read_DoesNotSwallowError(t *testing.T, ep *servic
 	err := r.Read(resourceData, clients)
 	require.Contains(t, err.Error(), "GetServiceEndpoint() Failed")
 }
+
 func TestServiceEndpointxrayV2_Read_DoesNotSwallowErrorToken(t *testing.T) {
 	testServiceEndpointxrayV2_Read_DoesNotSwallowError(t, &xrayV2TestServiceEndpoint, xrayV2TestServiceEndpointProjectID)
 }
+
 func TestServiceEndpointxrayV2_Read_DoesNotSwallowErrorPassword(t *testing.T) {
 	testServiceEndpointxrayV2_Read_DoesNotSwallowError(t, &xrayV2TestServiceEndpointPassword, xrayV2TestServiceEndpointProjectIDpassword)
 }
@@ -166,7 +178,8 @@ func testServiceEndpointxrayV2_Delete_DoesNotSwallowError(t *testing.T, ep *serv
 
 	r := ResourceServiceEndpointJFrogXRayV2()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointArtifactory(resourceData, ep, id.String())
+	resourceData.Set("project_id", (*ep.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointArtifactory(resourceData, ep)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -186,42 +199,19 @@ func testServiceEndpointxrayV2_Delete_DoesNotSwallowError(t *testing.T, ep *serv
 	err := r.Delete(resourceData, clients)
 	require.Contains(t, err.Error(), "DeleteServiceEndpoint() Failed")
 }
+
 func TestServiceEndpointxrayV2_Delete_DoesNotSwallowErrorToken(t *testing.T) {
 	testServiceEndpointxrayV2_Delete_DoesNotSwallowError(t, &xrayV2TestServiceEndpoint, xrayV2TestServiceEndpointProjectID)
 }
+
 func TestServiceEndpointxrayV2_Delete_DoesNotSwallowErrorPassword(t *testing.T) {
 	testServiceEndpointxrayV2_Delete_DoesNotSwallowError(t, &xrayV2TestServiceEndpointPassword, xrayV2TestServiceEndpointProjectIDpassword)
 }
 
-// verifies that if an error is produced on an update, it is not swallowed
-func testServiceEndpointxrayV2_Update_DoesNotSwallowError(t *testing.T, ep *serviceendpoint.ServiceEndpoint, id *uuid.UUID) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	r := ResourceServiceEndpointJFrogXRayV2()
-	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointArtifactory(resourceData, ep, id.String())
-
-	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
-	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
-
-	expectedArgs := serviceendpoint.UpdateServiceEndpointArgs{
-		Endpoint:   ep,
-		EndpointId: ep.Id,
-	}
-
-	buildClient.
-		EXPECT().
-		UpdateServiceEndpoint(clients.Ctx, expectedArgs).
-		Return(nil, errors.New("UpdateServiceEndpoint() Failed")).
-		Times(1)
-
-	err := r.Update(resourceData, clients)
-	require.Contains(t, err.Error(), "UpdateServiceEndpoint() Failed")
-}
 func TestServiceEndpointxrayV2_Update_DoesNotSwallowErrorToken(t *testing.T) {
 	testServiceEndpointxrayV2_Delete_DoesNotSwallowError(t, &xrayV2TestServiceEndpoint, xrayV2TestServiceEndpointProjectID)
 }
+
 func TestServiceEndpointxrayV2_Update_DoesNotSwallowErrorPassword(t *testing.T) {
 	testServiceEndpointxrayV2_Delete_DoesNotSwallowError(t, &xrayV2TestServiceEndpointPassword, xrayV2TestServiceEndpointProjectIDpassword)
 }

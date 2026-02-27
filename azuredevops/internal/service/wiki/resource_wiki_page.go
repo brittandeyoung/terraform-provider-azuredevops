@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
@@ -26,8 +27,11 @@ func ResourceWikiPage() *schema.Resource {
 		Read:   resourceWikiPageRead,
 		Update: resourceWikiPageUpdate,
 		Delete: resourceWikiPageDelete,
-		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+		Timeouts: &schema.ResourceTimeout{
+			Create: schema.DefaultTimeout(5 * time.Minute),
+			Read:   schema.DefaultTimeout(2 * time.Minute),
+			Update: schema.DefaultTimeout(5 * time.Minute),
+			Delete: schema.DefaultTimeout(5 * time.Minute),
 		},
 		Schema: map[string]*schema.Schema{
 			"project_id": {
@@ -72,7 +76,6 @@ func resourceWikiPageCreate(d *schema.ResourceData, m interface{}) error {
 		WikiIdentifier: converter.String(d.Get("wiki_id").(string)),
 		Path:           converter.String(d.Get("path").(string)),
 	})
-
 	if err != nil {
 		return err
 	}
@@ -89,7 +92,6 @@ func resourceWikiPageRead(d *schema.ResourceData, m interface{}) error {
 		Path:           converter.String(d.Get("path").(string)),
 		IncludeContent: converter.Bool(true),
 	})
-
 	if err != nil {
 		return err
 	}
@@ -110,7 +112,7 @@ func resourceWikiPageUpdate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
 	id, err := strconv.Atoi(d.Id())
 	if err != nil {
-		return fmt.Errorf(" Parse wiki page ID: %s. Error: %+v", d.Id(), err)
+		return fmt.Errorf("Parse wiki page ID: %s. Error: %+v", d.Id(), err)
 	}
 
 	pageLock.Lock()
@@ -125,7 +127,6 @@ func resourceWikiPageUpdate(d *schema.ResourceData, m interface{}) error {
 		WikiIdentifier: converter.String(d.Get("wiki_id").(string)),
 		Version:        converter.String(d.Get("etag").(string)),
 	})
-
 	if err != nil {
 		return err
 	}
@@ -138,7 +139,7 @@ func resourceWikiPageDelete(d *schema.ResourceData, m interface{}) error {
 
 	id, err := strconv.Atoi(d.Id())
 	if err != nil {
-		return fmt.Errorf(" Parse wiki page ID: %s. Error: %+v", d.Id(), err)
+		return fmt.Errorf("Parse wiki page ID: %s. Error: %+v", d.Id(), err)
 	}
 
 	pageLock.Lock()

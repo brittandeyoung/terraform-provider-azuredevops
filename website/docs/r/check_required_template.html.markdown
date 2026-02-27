@@ -84,12 +84,17 @@ The following arguments are supported:
 
 * `required_template` - (Required) One or more `required_template` blocks documented below.
 
+---
+
 A `required_template` block supports the following:
 
-- `repository_type` - (Optional) The type of the repository storing the template. Valid values: `azuregit`, `github`, `githubenterprise`, `bitbucket`. Defaults to `azuregit`.
-- `repository_name` - (Required) The name of the repository storing the template.
-- `repository_ref` - (Required) The branch in which the template will be referenced.
-- `template_path` - (Required) The path to the template yaml.
+* `template_path` - (Required) The path to the template yaml.
+
+* `repository_name` - (Required) The name of the repository storing the template.
+
+* `repository_ref` - (Required) The branch in which the template will be referenced.
+
+* `repository_type` - (Optional) The type of the repository storing the template. Possible values are: `azuregit`, `github`, `githubenterprise`, `bitbucket`. Defaults to `azuregit`.
 
 ## Attributes Reference
 
@@ -97,6 +102,15 @@ In addition to the Arguments listed above - the following attribute are exported
 
 * `id` - The ID of the check.
 * `version` - The version of the check.
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeout) for certain actions:
+
+* `create` - (Defaults to 2 minutes) Used when creating the Required Template Check.
+* `read` - (Defaults to 1 minute) Used when retrieving the Required Template Check.
+* `update` - (Defaults to 2 minutes) Used when updating the Required Template Check.
+* `delete` - (Defaults to 2 minutes) Used when deleting the Required Template Check.
 
 ## Import
 

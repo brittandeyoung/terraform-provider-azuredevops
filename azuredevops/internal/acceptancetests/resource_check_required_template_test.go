@@ -1,14 +1,10 @@
-//go:build (all || resource_check_required_template) && !exclude_approvalsandchecks
-// +build all resource_check_required_template
-// +build !exclude_approvalsandchecks
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -115,9 +111,9 @@ resource "azuredevops_check_required_template" "test" {
   target_resource_id   = azuredevops_serviceendpoint_generic.test.id
   target_resource_type = "endpoint"
   required_template {
-	repository_name = "%s"
-	repository_ref = "%s"
-	template_path = "%s"
+    repository_name = "%s"
+    repository_ref  = "%s"
+    template_path   = "%s"
   }
 }`, repositoryName, repositoryRef, templatePath)
 
@@ -128,14 +124,14 @@ resource "azuredevops_check_required_template" "test" {
 func hclRequiredTemplateCheckResourceComplete(projectName, repository_type, repositoryName, repositoryRef, templatePath string) string {
 	checkResource := fmt.Sprintf(`
 resource "azuredevops_check_required_template" "test" {
-  project_id                       = azuredevops_project.project.id
-  target_resource_id               = azuredevops_serviceendpoint_generic.test.id
-  target_resource_type             = "endpoint"
+  project_id           = azuredevops_project.project.id
+  target_resource_id   = azuredevops_serviceendpoint_generic.test.id
+  target_resource_type = "endpoint"
   required_template {
-	repository_type = "%s"
-	repository_name = "%s"
-	repository_ref = "%s"
-	template_path = "%s"
+    repository_type = "%s"
+    repository_name = "%s"
+    repository_ref  = "%s"
+    template_path   = "%s"
   }
 }`, repository_type, repositoryName, repositoryRef, templatePath)
 
@@ -146,14 +142,14 @@ resource "azuredevops_check_required_template" "test" {
 func hclRequiredTemplateCheckResourceUpdate(projectName, repository_type, repositoryName, repositoryRef, templatePath string) string {
 	checkResource := fmt.Sprintf(`
 resource "azuredevops_check_required_template" "test" {
-  project_id                       = azuredevops_project.project.id
-  target_resource_id               = azuredevops_serviceendpoint_generic.test.id
-  target_resource_type             = "endpoint"
+  project_id           = azuredevops_project.project.id
+  target_resource_id   = azuredevops_serviceendpoint_generic.test.id
+  target_resource_type = "endpoint"
   required_template {
-	repository_type = "%s"
-	repository_name = "%s"
-	repository_ref = "%s"
-	template_path = "%s"
+    repository_type = "%s"
+    repository_name = "%s"
+    repository_ref  = "%s"
+    template_path   = "%s"
   }
 
 }`, repository_type, repositoryName, repositoryRef, templatePath)

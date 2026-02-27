@@ -42,14 +42,14 @@ resource "azuredevops_serviceendpoint_kubernetes" "example" {
 }
 
 resource "azuredevops_environment_resource_kubernetes" "example" {
-  project_id = azuredevops_project.example.id
-  environment_id = azuredevops_environment.example.id
+  project_id          = azuredevops_project.example.id
+  environment_id      = azuredevops_environment.example.id
   service_endpoint_id = azuredevops_serviceendpoint_kubernetes.example.id
-  
-  name = "Example"
-  namespace = "default"
+
+  name         = "Example"
+  namespace    = "default"
   cluster_name = "example-aks"
-  tags = ["tag1", "tag2"]
+  tags         = ["tag1", "tag2"]
 }
 ```
 
@@ -82,6 +82,14 @@ In addition to the Arguments listed above - the following Attributes are exporte
 ## Relevant Links
 
 * [Azure DevOps Service REST API 6.0 - Kubernetes](https://docs.microsoft.com/en-us/rest/api/azure/devops/distributedtask/kubernetes?view=azure-devops-rest-6.0)
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 30 minutes) Used when creating the Environment Kubernetes Resource.
+* `read` - (Defaults to 5 minute) Used when retrieving the Environment Kubernetes Resource.
+* `delete` - (Defaults to 30 minutes) Used when deleting the Environment Kubernetes Resource.
 
 ## Import
 

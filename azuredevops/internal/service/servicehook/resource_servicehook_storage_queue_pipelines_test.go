@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/servicehooks"
@@ -17,6 +16,7 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 var subscriptionStorageQueueID = uuid.New()
@@ -61,7 +61,8 @@ var testResourceSubscriptionStorageQueue = []servicehooks.Subscription{
 			"stageResultId": "mystageresult",
 		},
 		ResourceVersion: converter.String("5.1-preview.1"),
-	}, {
+	},
+	{
 		Id:               &subscriptionStorageQueueID,
 		ConsumerActionId: converter.String("enqueue"),
 		ConsumerId:       converter.String("azureStorageQueue"),
@@ -88,7 +89,7 @@ func TestServicehookStorageQueuePipelines_FlattenExpandRoundTrip(t *testing.T) {
 	for _, subscription := range testResourceSubscriptionStorageQueue {
 		resourceData := schema.TestResourceDataRaw(t, ResourceServicehookStorageQueuePipelines().Schema, nil)
 		flattenServicehookStorageQueuePipelines(resourceData, &subscription, (*subscription.ConsumerInputs)["accountKey"])
-		subscriptionAfterRoundTrip, _ := expandServicehookStorageQueuePipelines(resourceData)
+		subscriptionAfterRoundTrip := expandServicehookStorageQueuePipelines(resourceData)
 		subscriptionAfterRoundTrip.Id = subscription.Id
 
 		require.Equal(t, subscription, *subscriptionAfterRoundTrip)

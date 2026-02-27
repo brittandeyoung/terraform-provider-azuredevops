@@ -34,11 +34,18 @@ The following arguments are supported:
 
 ~> **NOTE:** One of either `service_endpoint_id` or `service_endpoint_name` must be specified.
 
-
 ## Attributes Reference
 
 In addition to the Arguments list above - the following Attributes are exported:
 
-* `authorization` - Specifies the Authorization Scheme Map.
-* `description` - Specifies the description of the Service Endpoint.
+* `id` - The ID of the Sonar Cloud Service Endpoint.
 
+* `authorization` - The Authorization scheme.
+
+* `description` - The description of the Service Endpoint.
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `read` - (Defaults to 5 minute) Used when retrieving the SonarQube Cloud Service Endpoint.

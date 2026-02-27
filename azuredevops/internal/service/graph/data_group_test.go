@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
@@ -18,6 +17,7 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 // A helper type that is used in some of these tests to make initializing
@@ -160,7 +160,23 @@ func TestGroupDataSource_HandlesContinuationToken_And_SelectsCorrectGroup(t *tes
 func TestGroupDataSource_HandlesCollectionGroups_And_ReturnsErrorOnProjectGroup(t *testing.T) {
 	resourceData := createResourceData(t, "", "name1")
 
-	err := testGroupDataSource_HandlesCollectionGroups(t, resourceData)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	originID := uuid.New()
+	graphClient := azdosdkmocks.NewMockGraphClient(ctrl)
+	clients := &client.AggregatedClient{GraphClient: graphClient, Ctx: context.Background()}
+
+	listGroupCallArgs := graph.ListGroupsArgs{}
+	listGroupCallResponse := createPaginatedResponse("",
+		groupMeta{name: "name1", descriptor: "descriptor1", origin: "vsts", originId: originID.String()},
+	)
+	graphClient.
+		EXPECT().
+		ListGroups(clients.Ctx, listGroupCallArgs).
+		Return(listGroupCallResponse, nil)
+	err := dataSourceGroupRead(resourceData, clients)
+
 	require.NotNil(t, err)
 	require.Error(t, err, "Could not find group with name name1")
 }
@@ -168,18 +184,8 @@ func TestGroupDataSource_HandlesCollectionGroups_And_ReturnsErrorOnProjectGroup(
 func TestGroupDataSource_HandlesCollectionGroups_And_ReturnsCorrectGroup(t *testing.T) {
 	resourceData := createResourceData(t, "", "name3")
 
-	err := testGroupDataSource_HandlesCollectionGroups(t, resourceData)
-	require.Nil(t, err)
-	require.Equal(t, "descriptor3", resourceData.Id())
-	require.Equal(t, "name3", resourceData.Get("name"))
-	require.Empty(t, resourceData.Get("project_id"))
-}
-
-func testGroupDataSource_HandlesCollectionGroups(t *testing.T, resourceData *schema.ResourceData) error {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-
-	originID := uuid.New()
 
 	graphClient := azdosdkmocks.NewMockGraphClient(ctrl)
 	clients := &client.AggregatedClient{GraphClient: graphClient, Ctx: context.Background()}
@@ -191,31 +197,23 @@ func testGroupDataSource_HandlesCollectionGroups(t *testing.T, resourceData *sch
 			Value: &id,
 		}, nil)
 
-	firstListGroupCallArgs := graph.ListGroupsArgs{}
-	continuationToken := "continuation-token"
-	firstListGroupCallResponse := createPaginatedResponse(continuationToken,
-		groupMeta{name: "name1", descriptor: "descriptor1", origin: "vsts", originId: originID.String()},
-	)
-	firstCall := graphClient.
-		EXPECT().
-		ListGroups(clients.Ctx, firstListGroupCallArgs).
-		Return(firstListGroupCallResponse, nil)
-
-	secondListGroupCallArgs := graph.ListGroupsArgs{ContinuationToken: &continuationToken}
-	secondListGroupCallResponse := createPaginatedResponse("",
+	listGroupCallArgs := graph.ListGroupsArgs{}
+	listGroupCallResponse := createPaginatedResponse("",
 		groupMeta{name: "name2", descriptor: "descriptor2", origin: "vsts", originId: uuid.New().String()},
 		groupMeta{name: "name5", descriptor: "descriptor5", origin: "vsts", originId: uuid.New().String(), domain: "vstfs:///Classification/TeamProject/" + uuid.New().String()},
 		groupMeta{name: "name3", descriptor: "descriptor3", origin: "vsts", originId: uuid.New().String(), domain: "vstfs:///Framework/IdentityDomain/" + uuid.New().String()},
 		groupMeta{name: "name4", descriptor: "descriptor4", origin: "vsts", originId: uuid.New().String(), domain: "vstfs:///Classification/TeamProject/" + uuid.New().String()},
 	)
-	secondCall := graphClient.
+	graphClient.
 		EXPECT().
-		ListGroups(clients.Ctx, secondListGroupCallArgs).
-		Return(secondListGroupCallResponse, nil)
+		ListGroups(clients.Ctx, listGroupCallArgs).
+		Return(listGroupCallResponse, nil)
+	err := dataSourceGroupRead(resourceData, clients)
 
-	gomock.InOrder(firstCall, secondCall)
-
-	return dataSourceGroupRead(resourceData, clients)
+	require.Nil(t, err)
+	require.Equal(t, "descriptor3", resourceData.Id())
+	require.Equal(t, "name3", resourceData.Get("name"))
+	require.Empty(t, resourceData.Get("project_id"))
 }
 
 func createPaginatedResponse(continuationToken string, groups ...groupMeta) *graph.PagedGraphGroups {

@@ -2,23 +2,23 @@
 layout: "azuredevops"
 page_title: "AzureDevops: azuredevops_servicehook_storage_queue_pipelines"
 description: |-
-  Manages a Service Hook Storage Queue Pipelines.
+  Manages a Storage Queue Pipelines Service Hook.
 ---
 
 # azuredevops_servicehook_storage_queue_pipelines
 
-Manages a Service Hook Storage Queue Pipelines.
+Manages a Storage Queue Pipelines Service Hook .
 
 ## Example Usage
 
 ```hcl
 resource "azuredevops_project" "example" {
-  name = "example-project" 
+  name = "example-project"
 }
 
 resource "azurerm_resource_group" "example" {
   name     = "example-resources"
-  location = "West Europe" 
+  location = "West Europe"
 }
 
 resource "azurerm_storage_account" "example" {
@@ -30,18 +30,18 @@ resource "azurerm_storage_account" "example" {
 }
 
 resource "azurerm_storage_queue" "example" {
-  name                  = "examplequeue"
-  storage_account_name  = azurerm_storage_account.example.name
+  name                 = "examplequeue"
+  storage_account_name = azurerm_storage_account.example.name
 }
 
 resource "azuredevops_servicehook_storage_queue_pipelines" "example" {
   project_id   = azuredevops_project.example.id
   account_name = azurerm_storage_account.example.name
-  account_key  = azurerm_storage_account.example.primary_access_key 
+  account_key  = azurerm_storage_account.example.primary_access_key
   queue_name   = azurerm_storage_queue.example.name
   visi_timeout = 30
   run_state_changed_event {
-    run_state_filter = "Completed"
+    run_state_filter  = "Completed"
     run_result_filter = "Succeeded"
   }
 }
@@ -53,7 +53,7 @@ An empty configuration block will occur in all events triggering the associated 
 resource "azuredevops_servicehook_storage_queue_pipelines" "example" {
   project_id   = azuredevops_project.example.id
   account_name = azurerm_storage_account.example.name
-  account_key  = azurerm_storage_account.example.primary_access_key 
+  account_key  = azurerm_storage_account.example.primary_access_key
   queue_name   = azurerm_storage_queue.example.name
   visi_timeout = 30
   run_state_changed_event {}
@@ -113,11 +113,18 @@ In addition to the Arguments listed above - the following Attributes are exporte
 
 * `id` - The ID of the Service Hook Storage Queue Pipelines.
 
+## Timeouts
 
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 10 minutes) Used when creating the Storage Queue Pipelines Service Hook.
+* `read` - (Defaults to 5 minute) Used when retrieving the Storage Queue Pipelines Service Hook.
+* `update` - (Defaults to 10 minutes) Used when updating the Storage Queue Pipelines Service Hook.
+* `delete` - (Defaults to 10 minutes) Used when deleting the Storage Queue Pipelines Service Hook.
 
 ## Import
 
-Service Hook Storage Queue Pipeliness can be imported using the `resource id`, e.g.
+Storage Queue Pipelines Service Hook can be imported using the `resource id`, e.g.
 
 ```shell
 terraform import azuredevops_servicehook_storage_queue_pipelines.example 00000000-0000-0000-0000-000000000000

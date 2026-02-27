@@ -5,26 +5,28 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
 	"github.com/microsoft/terraform-provider-azuredevops/azdosdkmocks"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var testID = uuid.New()
-var testProject = core.TeamProject{
-	Id:          &testID,
-	Name:        converter.String("Name"),
-	Visibility:  &core.ProjectVisibilityValues.Public,
-	Description: converter.String("Description"),
-	Capabilities: &map[string]map[string]string{
-		"versioncontrol":  {"sourceControlType": "SouceControlType"},
-		"processTemplate": {"templateTypeId": testID.String()},
-	},
-}
+var (
+	testID      = uuid.New()
+	testProject = core.TeamProject{
+		Id:          &testID,
+		Name:        converter.String("Name"),
+		Visibility:  &core.ProjectVisibilityValues.Public,
+		Description: converter.String("Description"),
+		Capabilities: &map[string]map[string]string{
+			"versioncontrol":  {"sourceControlType": "SouceControlType"},
+			"processTemplate": {"templateTypeId": testID.String()},
+		},
+	}
+)
 
 type testCase struct {
 	Name            string

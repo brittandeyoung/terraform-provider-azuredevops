@@ -3,13 +3,12 @@ package serviceendpoint
 import (
 	"fmt"
 	"maps"
+	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/tfhelper"
 )
@@ -33,18 +32,20 @@ func ResourceServiceEndpointAws() *schema.Resource {
 
 	maps.Copy(r.Schema, map[string]*schema.Schema{
 		"access_key_id": {
-			Type:        schema.TypeString,
-			Required:    true,
-			DefaultFunc: schema.EnvDefaultFunc("AZDO_AWS_SERVICE_CONNECTION_ACCESS_KEY_ID", nil),
-			Description: "The AWS access key ID for signing programmatic requests.",
+			Type:         schema.TypeString,
+			Optional:     true,
+			DefaultFunc:  schema.EnvDefaultFunc("AZDO_AWS_SERVICE_CONNECTION_ACCESS_KEY_ID", nil),
+			Description:  "The AWS access key ID for signing programmatic requests.",
+			RequiredWith: []string{"secret_access_key"},
 		},
 
 		"secret_access_key": {
-			Type:        schema.TypeString,
-			Required:    true,
-			DefaultFunc: schema.EnvDefaultFunc("AZDO_AWS_SERVICE_CONNECTION_SECRET_ACCESS_KEY", nil),
-			Description: "The AWS secret access key for signing programmatic requests.",
-			Sensitive:   true,
+			Type:         schema.TypeString,
+			Optional:     true,
+			DefaultFunc:  schema.EnvDefaultFunc("AZDO_AWS_SERVICE_CONNECTION_SECRET_ACCESS_KEY", nil),
+			Description:  "The AWS secret access key for signing programmatic requests.",
+			Sensitive:    true,
+			RequiredWith: []string{"access_key_id"},
 		},
 
 		"session_token": {
@@ -73,6 +74,14 @@ func ResourceServiceEndpointAws() *schema.Resource {
 			DefaultFunc: schema.EnvDefaultFunc("AZDO_AWS_SERVICE_CONNECTION_EXTERNAL_ID", nil),
 			Description: "A unique identifier that is used by third parties when assuming roles in their customers' accounts, aka cross-account role access.",
 		},
+
+		"use_oidc": {
+			Type:        schema.TypeBool,
+			Optional:    true,
+			Default:     false,
+			DefaultFunc: schema.EnvDefaultFunc("AZDO_AWS_SERVICE_CONNECTION_USE_OIDC", nil),
+			Description: "Enable this to attempt getting credentials with OIDC token from Azure Devops.",
+		},
 	})
 
 	return r
@@ -80,10 +89,7 @@ func ResourceServiceEndpointAws() *schema.Resource {
 
 func resourceServiceEndpointAwsCreate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, _, err := expandServiceEndpointAws(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
-	}
+	serviceEndpoint := expandServiceEndpointAws(d)
 
 	serviceEndPoint, err := createServiceEndpoint(d, clients, serviceEndpoint)
 	if err != nil {
@@ -102,48 +108,39 @@ func resourceServiceEndpointAwsRead(d *schema.ResourceData, m interface{}) error
 	}
 
 	serviceEndpoint, err := clients.ServiceEndpointClient.GetServiceEndpointDetails(clients.Ctx, *getArgs)
+	if isServiceEndpointDeleted(d, err, serviceEndpoint, getArgs) {
+		return nil
+	}
 	if err != nil {
-		if utils.ResponseWasNotFound(err) {
-			d.SetId("")
-			return nil
-		}
-		return fmt.Errorf(" looking up service endpoint given ID (%v) and project ID (%v): %v", getArgs.EndpointId, getArgs.Project, err)
+		return fmt.Errorf("looking up service endpoint given ID (%s) and project ID (%s): %v", getArgs.EndpointId, *getArgs.Project, err)
 	}
 
-	flattenServiceEndpointAws(d, serviceEndpoint, (*serviceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
-	return nil
+	if err = checkServiceConnection(serviceEndpoint); err != nil {
+		return err
+	}
+
+	return flattenServiceEndpointAws(d, serviceEndpoint)
 }
 
 func resourceServiceEndpointAwsUpdate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectID, err := expandServiceEndpointAws(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
+	serviceEndpoint := expandServiceEndpointAws(d)
+
+	if _, err := updateServiceEndpoint(clients, serviceEndpoint); err != nil {
+		return fmt.Errorf("Updating service endpoint in Azure DevOps: %+v", err)
 	}
-
-	updatedServiceEndpoint, err := updateServiceEndpoint(clients, serviceEndpoint)
-
-	if err != nil {
-		return fmt.Errorf("Error updating service endpoint in Azure DevOps: %+v", err)
-	}
-
-	flattenServiceEndpointAws(d, updatedServiceEndpoint, projectID.String())
 	return resourceServiceEndpointAwsRead(d, m)
 }
 
 func resourceServiceEndpointAwsDelete(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectId, err := expandServiceEndpointAws(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
-	}
-
-	return deleteServiceEndpoint(clients, projectId, serviceEndpoint.Id, d.Timeout(schema.TimeoutDelete))
+	serviceEndpoint := expandServiceEndpointAws(d)
+	return deleteServiceEndpoint(clients, serviceEndpoint, d.Timeout(schema.TimeoutDelete))
 }
 
 // Convert internal Terraform data structure to an AzDO data structure
-func expandServiceEndpointAws(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, *uuid.UUID, error) {
-	serviceEndpoint, projectID := doBaseExpansion(d)
+func expandServiceEndpointAws(d *schema.ResourceData) *serviceendpoint.ServiceEndpoint {
+	serviceEndpoint := doBaseExpansion(d)
 	serviceEndpoint.Authorization = &serviceendpoint.EndpointAuthorization{
 		Parameters: &map[string]string{
 			"username":        d.Get("access_key_id").(string),
@@ -152,20 +149,45 @@ func expandServiceEndpointAws(d *schema.ResourceData) (*serviceendpoint.ServiceE
 			"assumeRoleArn":   d.Get("role_to_assume").(string),
 			"roleSessionName": d.Get("role_session_name").(string),
 			"externalId":      d.Get("external_id").(string),
+			"useOIDC":         strconv.FormatBool(d.Get("use_oidc").(bool)),
 		},
 		Scheme: converter.String("UsernamePassword"),
 	}
 	serviceEndpoint.Type = converter.String("aws")
 	serviceEndpoint.Url = converter.String("https://aws.amazon.com/")
-	return serviceEndpoint, projectID, nil
+	return serviceEndpoint
 }
 
 // Convert AzDO data structure to internal Terraform data structure
-func flattenServiceEndpointAws(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint, projectID string) {
-	doBaseFlattening(d, serviceEndpoint, projectID)
+func flattenServiceEndpointAws(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint) error {
+	doBaseFlattening(d, serviceEndpoint)
 
-	d.Set("access_key_id", (*serviceEndpoint.Authorization.Parameters)["username"])
-	d.Set("role_to_assume", (*serviceEndpoint.Authorization.Parameters)["assumeRoleArn"])
-	d.Set("role_session_name", (*serviceEndpoint.Authorization.Parameters)["roleSessionName"])
-	d.Set("external_id", (*serviceEndpoint.Authorization.Parameters)["externalId"])
+	if serviceEndpoint.Authorization != nil && serviceEndpoint.Authorization.Parameters != nil {
+		if v, ok := (*serviceEndpoint.Authorization.Parameters)["username"]; ok {
+			d.Set("access_key_id", v)
+		}
+
+		if v, ok := (*serviceEndpoint.Authorization.Parameters)["assumeRoleArn"]; ok {
+			d.Set("role_to_assume", v)
+		}
+
+		if v, ok := (*serviceEndpoint.Authorization.Parameters)["roleSessionName"]; ok {
+			d.Set("role_session_name", v)
+		}
+
+		if v, ok := (*serviceEndpoint.Authorization.Parameters)["externalId"]; ok {
+			d.Set("external_id", v)
+		}
+
+		if v, ok := (*serviceEndpoint.Authorization.Parameters)["useOIDC"]; ok {
+			if v != "" {
+				useOIDC, err := strconv.ParseBool(v)
+				if err != nil {
+					return fmt.Errorf("parse `useOIDC`. Error: %+v", err)
+				}
+				d.Set("use_oidc", useOIDC)
+			}
+		}
+	}
+	return nil
 }

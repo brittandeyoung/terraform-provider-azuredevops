@@ -1,14 +1,10 @@
-//go:build (all || resource_serviceendpoint_nuget) && !exclude_serviceendpoints
-// +build all resource_serviceendpoint_nuget
-// +build !exclude_serviceendpoints
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -156,7 +152,6 @@ resource "azuredevops_serviceendpoint_nuget" "test" {
   feed_url              = "https://api.nuget.org/v3/index.json"
   description           = "%[2]s-description"
 }`, projectName, serviceEndpointName)
-
 }
 
 func hclSvcEndpointNuGetResourcePersonalAccessToken(projectName string, serviceEndpointName string) string {
@@ -176,7 +171,6 @@ resource "azuredevops_serviceendpoint_nuget" "test" {
   feed_url              = "https://api.nuget.org/v3/index.json"
   description           = "%[2]s-description"
 }`, projectName, serviceEndpointName)
-
 }
 
 func hclSvcEndpointNuGetResourceUnamePwd(projectName string, serviceEndpointName string) string {
@@ -197,7 +191,6 @@ resource "azuredevops_serviceendpoint_nuget" "test" {
   feed_url              = "https://api.nuget.org/v3/index.json"
   description           = "%[2]s-description"
 }`, projectName, serviceEndpointName)
-
 }
 
 func hclSvcEndpointNugGetResourceRequiresImport(projectName string, serviceEndpointName string) string {

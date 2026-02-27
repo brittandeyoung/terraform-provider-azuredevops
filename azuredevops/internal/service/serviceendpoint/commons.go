@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
@@ -16,9 +16,11 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 )
 
-const errMsgTfConfigRead = " Reading terraform configuration: %+v"
-const errMsgServiceCreate = " Looking up service endpoint given ID (%s) and project ID (%s): %v "
-const errMsgServiceDelete = " Delete service endpoint. ServiceEndpointID: %s, projectID: %s. %v "
+const (
+	errMsgTfConfigRead  = " Reading terraform configuration: %+v"
+	errMsgServiceCreate = " Looking up service endpoint given ID (%s) and project ID (%s): %v "
+	errMsgServiceDelete = " Delete service endpoint. ServiceEndpointID: %s, projectID: %s. %v "
+)
 
 type operationState struct {
 	Ready      string
@@ -43,7 +45,6 @@ func baseSchema() map[string]*schema.Schema {
 		"service_endpoint_name": {
 			Type:         schema.TypeString,
 			Required:     true,
-			ForceNew:     true,
 			ValidateFunc: validation.StringIsNotWhiteSpace,
 		},
 		"description": {
@@ -53,10 +54,8 @@ func baseSchema() map[string]*schema.Schema {
 			ValidateFunc: validation.StringLenBetween(0, 1024),
 		},
 		"authorization": {
-			Type:         schema.TypeMap,
-			Optional:     true,
-			Computed:     true,
-			ValidateFunc: validation.StringIsNotWhiteSpace,
+			Type:     schema.TypeMap,
+			Computed: true,
 			Elem: &schema.Schema{
 				Type: schema.TypeString,
 			},
@@ -65,7 +64,7 @@ func baseSchema() map[string]*schema.Schema {
 }
 
 func createServiceEndpoint(d *schema.ResourceData, clients *client.AggregatedClient, endpoint *serviceendpoint.ServiceEndpoint) (*serviceendpoint.ServiceEndpoint, error) {
-	if endpoint.ServiceEndpointProjectReferences == nil || len(*endpoint.ServiceEndpointProjectReferences) <= 0 {
+	if endpoint.ServiceEndpointProjectReferences == nil || len(*endpoint.ServiceEndpointProjectReferences) == 0 {
 		return nil, fmt.Errorf("A ServiceEndpoint requires at least one ServiceEndpointProjectReference")
 	}
 
@@ -80,7 +79,7 @@ func createServiceEndpoint(d *schema.ResourceData, clients *client.AggregatedCli
 
 	projectID := (*endpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id
 
-	stateConf := &resource.StateChangeConf{
+	stateConf := &retry.StateChangeConf{
 		ContinuousTargetOccurence: 1,
 		Delay:                     10 * time.Second,
 		MinTimeout:                10 * time.Second,
@@ -91,10 +90,10 @@ func createServiceEndpoint(d *schema.ResourceData, clients *client.AggregatedCli
 	}
 
 	if _, err := stateConf.WaitForState(); err != nil { //nolint:staticcheck
-		if delErr := deleteServiceEndpoint(clients, projectID, createdServiceEndpoint.Id, d.Timeout(schema.TimeoutDelete)); delErr != nil {
+		if delErr := deleteServiceEndpoint(clients, createdServiceEndpoint, d.Timeout(schema.TimeoutDelete)); delErr != nil {
 			log.Printf("[DEBUG] Failed to delete the failed service endpoint: %v ", delErr)
 		}
-		return nil, fmt.Errorf(" waiting for service endpoint ready. %v ", err)
+		return nil, fmt.Errorf("waiting for service endpoint ready. %v ", err)
 	}
 
 	return createdServiceEndpoint, err
@@ -111,35 +110,36 @@ func updateServiceEndpoint(clients *client.AggregatedClient, endpoint *serviceen
 	return updatedServiceEndpoint, err
 }
 
-func deleteServiceEndpoint(clients *client.AggregatedClient, projectID *uuid.UUID, serviceEndpointID *uuid.UUID, timeout time.Duration) error {
+func deleteServiceEndpoint(clients *client.AggregatedClient, serviceEndpoint *serviceendpoint.ServiceEndpoint, timeout time.Duration) error {
+	projectID := (*serviceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id
 	if err := clients.ServiceEndpointClient.DeleteServiceEndpoint(
 		clients.Ctx,
 		serviceendpoint.DeleteServiceEndpointArgs{
 			ProjectIds: &[]string{
 				projectID.String(),
 			},
-			EndpointId: serviceEndpointID,
+			EndpointId: serviceEndpoint.Id,
 		}); err != nil {
-		return fmt.Errorf(" Delete service endpoint error %v", err)
+		return fmt.Errorf("Delete service endpoint error %v", err)
 	}
 
-	stateConf := &resource.StateChangeConf{
+	stateConf := &retry.StateChangeConf{
 		ContinuousTargetOccurence: 1,
 		Delay:                     10 * time.Second,
 		MinTimeout:                10 * time.Second,
 		Pending:                   []string{opState.InProgress},
 		Target:                    []string{opState.Ready, opState.Failed},
-		Refresh:                   checkServiceEndpointStatus(clients, projectID, serviceEndpointID),
+		Refresh:                   checkServiceEndpointStatus(clients, projectID, serviceEndpoint.Id),
 		Timeout:                   timeout,
 	}
 
-	if _, err := stateConf.WaitForState(); err != nil { //nolint:staticcheck
-		return fmt.Errorf(" Wait for service endpoint to be deleted error. %v ", err)
+	if _, err := stateConf.WaitForStateContext(clients.Ctx); err != nil {
+		return fmt.Errorf("Wait for service endpoint to be deleted error. %v ", err)
 	}
 	return nil
 }
 
-func validateServiceEndpoint(clients *client.AggregatedClient, endpoint *serviceendpoint.ServiceEndpoint, serviceEndpointID *string, retryTimeout time.Duration) error {
+func validateServiceEndpoint(clients *client.AggregatedClient, endpoint *serviceendpoint.ServiceEndpoint, projectId string, retryTimeout time.Duration) error {
 	reqArgs := serviceendpoint.ExecuteServiceEndpointRequestArgs{
 		ServiceEndpointRequest: &serviceendpoint.ServiceEndpointRequest{
 			DataSourceDetails: &serviceendpoint.DataSourceDetails{
@@ -153,20 +153,20 @@ func validateServiceEndpoint(clients *client.AggregatedClient, endpoint *service
 				Type:          endpoint.Type,
 			},
 		},
-		Project:    converter.String((*endpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String()),
-		EndpointId: serviceEndpointID,
+		Project:    &projectId,
+		EndpointId: converter.String(endpoint.Id.String()),
 	}
 
 	log.Printf(":: %s :: Initiating validation", *endpoint.Name)
-	err := resource.RetryContext(clients.Ctx, retryTimeout, func() *resource.RetryError {
+	err := retry.RetryContext(clients.Ctx, retryTimeout, func() *retry.RetryError {
 		reqResult, err := clients.ServiceEndpointClient.ExecuteServiceEndpointRequest(clients.Ctx, reqArgs)
 		if err != nil {
 			log.Printf(":: %s :: error during endpoint validation request", *endpoint.Name)
-			return resource.NonRetryableError(err)
+			return retry.NonRetryableError(err)
 		}
 		if !strings.EqualFold(*reqResult.StatusCode, "ok") {
 			log.Printf(":: %s :: validation failed with StatusCode '%s', retrying...", *endpoint.Name, *reqResult.StatusCode)
-			return resource.RetryableError(fmt.Errorf("Error validating connection: (type: %s, name: %s, code: %s, message: %s)", *endpoint.Type, *endpoint.Name, *reqResult.StatusCode, *reqResult.ErrorMessage))
+			return retry.RetryableError(fmt.Errorf("Error validating connection: (type: %s, name: %s, code: %s, message: %s)", *endpoint.Type, *endpoint.Name, *reqResult.StatusCode, *reqResult.ErrorMessage))
 		}
 		log.Printf(":: %s :: successfully validated connection", *endpoint.Name)
 		return nil
@@ -178,7 +178,7 @@ func serviceEndpointGetArgs(d *schema.ResourceData) (*serviceendpoint.GetService
 	var serviceEndpointID *uuid.UUID
 	parsedServiceEndpointID, err := uuid.Parse(d.Id())
 	if err != nil {
-		return nil, fmt.Errorf(" parsing the service endpoint ID from the Terraform resource data: %v", err)
+		return nil, fmt.Errorf("parsing the service endpoint ID from the Terraform resource data: %v", err)
 	}
 	serviceEndpointID = &parsedServiceEndpointID
 	projectID, err := uuid.Parse(d.Get("project_id").(string))
@@ -192,7 +192,7 @@ func serviceEndpointGetArgs(d *schema.ResourceData) (*serviceendpoint.GetService
 }
 
 // Service endpoint delete is an async operation, make sure service endpoint is deleted.
-func checkServiceEndpointStatus(clients *client.AggregatedClient, projectID *uuid.UUID, endPointID *uuid.UUID) resource.StateRefreshFunc {
+func checkServiceEndpointStatus(clients *client.AggregatedClient, projectID *uuid.UUID, endPointID *uuid.UUID) retry.StateRefreshFunc {
 	return func() (interface{}, string, error) {
 		serviceEndpoint, err := clients.ServiceEndpointClient.GetServiceEndpointDetails(
 			clients.Ctx,
@@ -200,7 +200,6 @@ func checkServiceEndpointStatus(clients *client.AggregatedClient, projectID *uui
 				Project:    converter.String(projectID.String()),
 				EndpointId: endPointID,
 			})
-
 		if err != nil {
 			return nil, opState.Failed, fmt.Errorf(errMsgServiceDelete, endPointID, *projectID, err)
 		}
@@ -215,7 +214,32 @@ func checkServiceEndpointStatus(clients *client.AggregatedClient, projectID *uui
 	}
 }
 
-func getServiceEndpoint(client *client.AggregatedClient, serviceEndpointID *uuid.UUID, projectID *uuid.UUID) resource.StateRefreshFunc {
+// Check if the service endpoint has been deleted
+// 1) Service response 404
+// 2) Service response 200 but service endpoint is null
+// 3) Service response 200 but service endpoint is not null but ID is null
+// 4) Service response 200 but service endpoint is not null and ID is null but other data is null
+// 5) Service response 200 with state property? deleted = true/false or state = deleted/success/updating
+func isServiceEndpointDeleted(d *schema.ResourceData, err error, serviceEndpoint *serviceendpoint.ServiceEndpoint, args *serviceendpoint.GetServiceEndpointDetailsArgs) bool {
+	if err != nil {
+		if utils.ResponseWasNotFound(err) {
+			log.Printf(" [INFO] Service endpoint not found. ID: (%v)", args.EndpointId)
+			d.SetId("")
+			return true
+		}
+		return false
+	}
+
+	if serviceEndpoint == nil || serviceEndpoint.Id == nil ||
+		(serviceEndpoint.Id != nil && serviceEndpoint.Authorization == nil) {
+		log.Printf(" [INFO] Service endpoint not found. ID: (%v)", args.EndpointId)
+		d.SetId("")
+		return true
+	}
+	return false
+}
+
+func getServiceEndpoint(client *client.AggregatedClient, serviceEndpointID *uuid.UUID, projectID *uuid.UUID) retry.StateRefreshFunc {
 	return func() (interface{}, string, error) {
 		serviceEndpoint, err := client.ServiceEndpointClient.GetServiceEndpointDetails(
 			client.Ctx,
@@ -224,7 +248,6 @@ func getServiceEndpoint(client *client.AggregatedClient, serviceEndpointID *uuid
 				Project:    converter.String(projectID.String()),
 			},
 		)
-
 		if err != nil {
 			return nil, opState.Failed, fmt.Errorf(errMsgServiceCreate, serviceEndpointID, *projectID, err)
 		}
@@ -243,7 +266,7 @@ func getServiceEndpoint(client *client.AggregatedClient, serviceEndpointID *uuid
 }
 
 // doBaseExpansion performs the expansion for the 'base' attributes that are defined in the schema, above
-func doBaseExpansion(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, *uuid.UUID) {
+func doBaseExpansion(d *schema.ResourceData) *serviceendpoint.ServiceEndpoint {
 	// an "error" is OK here as it is expected in the case that the ID is not set in the resource data
 	var serviceEndpointID *uuid.UUID
 	parsedID, err := uuid.Parse(d.Id())
@@ -268,11 +291,11 @@ func doBaseExpansion(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, 
 		},
 	}
 
-	return serviceEndpoint, &projectID
+	return serviceEndpoint
 }
 
 // doBaseFlattening performs the flattening for the 'base' attributes that are defined in the schema, above
-func doBaseFlattening(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint, projectID string) {
+func doBaseFlattening(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint) {
 	if serviceEndpoint.Id != nil {
 		d.SetId(serviceEndpoint.Id.String())
 	}
@@ -285,8 +308,13 @@ func doBaseFlattening(d *schema.ResourceData, serviceEndpoint *serviceendpoint.S
 		d.Set("description", serviceEndpoint.Description)
 	}
 
-	if projectID != "" {
-		d.Set("project_id", projectID)
+	if serviceEndpoint.ServiceEndpointProjectReferences != nil && len(*serviceEndpoint.ServiceEndpointProjectReferences) > 0 {
+		for _, project := range *serviceEndpoint.ServiceEndpointProjectReferences {
+			if strings.EqualFold(project.ProjectReference.Id.String(), d.Get("project_id").(string)) {
+				d.Set("project_id", project.ProjectReference.Id.String())
+				break
+			}
+		}
 	}
 
 	if serviceEndpoint.Authorization != nil && serviceEndpoint.Authorization.Scheme != nil {
@@ -337,14 +365,14 @@ func dataSourceGenBaseSchema() map[string]*schema.Schema {
 	}
 }
 
-func dataSourceGetBaseServiceEndpoint(d *schema.ResourceData, m interface{}) (*serviceendpoint.ServiceEndpoint, *uuid.UUID, error) {
+func dataSourceGetBaseServiceEndpoint(d *schema.ResourceData, m interface{}) (*serviceendpoint.ServiceEndpoint, error) {
 	clients := m.(*client.AggregatedClient)
 
 	var projectID *uuid.UUID
 	projectIDString := d.Get("project_id").(string)
 	parsedProjectID, err := uuid.Parse(projectIDString)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error parsing projectID from the Terraform data source declaration: %v", err)
+		return nil, fmt.Errorf("Parsing projectID from the Terraform data source declaration: %v", err)
 	}
 
 	projectID = &parsedProjectID
@@ -353,7 +381,7 @@ func dataSourceGetBaseServiceEndpoint(d *schema.ResourceData, m interface{}) (*s
 		var serviceEndpointID *uuid.UUID
 		parsedServiceEndpointID, err := uuid.Parse(serviceEndpointIDString.(string))
 		if err != nil {
-			return nil, nil, fmt.Errorf("Error parsing serviceEndpointID from the Terraform data source declaration: %v", err)
+			return nil, fmt.Errorf("Parsing serviceEndpointID from the Terraform data source declaration: %v", err)
 		}
 		serviceEndpointID = &parsedServiceEndpointID
 
@@ -367,12 +395,12 @@ func dataSourceGetBaseServiceEndpoint(d *schema.ResourceData, m interface{}) (*s
 		if err != nil {
 			if utils.ResponseWasNotFound(err) {
 				d.SetId("")
-				return nil, projectID, nil
+				return nil, nil
 			}
-			return nil, projectID, fmt.Errorf("Error looking up service endpoint with ID (%v) and projectID (%v): %v", serviceEndpointID, projectID, err)
+			return nil, fmt.Errorf("Looking up service endpoint with ID (%v) and projectID (%v): %v", serviceEndpointID, projectID, err)
 		}
 
-		return serviceEndpoint, projectID, nil
+		return serviceEndpoint, nil
 	}
 
 	if serviceEndpointName, ok := d.GetOk("service_endpoint_name"); ok {
@@ -380,14 +408,14 @@ func dataSourceGetBaseServiceEndpoint(d *schema.ResourceData, m interface{}) (*s
 		if err != nil {
 			if utils.ResponseWasNotFound(err) {
 				d.SetId("")
-				return nil, projectID, nil
+				return nil, nil
 			}
-			return nil, projectID, fmt.Errorf("Error looking up service endpoint with name (%v) and projectID (%v): %v", serviceEndpointName, projectID, err)
+			return nil, fmt.Errorf("Looking up service endpoint with name (%v) and projectID (%v): %v", serviceEndpointName, projectID, err)
 		}
 
-		return serviceEndpoint, projectID, nil
+		return serviceEndpoint, nil
 	}
-	return nil, projectID, nil
+	return nil, nil
 }
 
 func dataSourceGetServiceEndpointByNameAndProject(clients *client.AggregatedClient, serviceEndpointName string, projectID string) (*serviceendpoint.ServiceEndpoint, error) {
@@ -429,3 +457,10 @@ const (
 	Automatic EndpointCreationMode = "Automatic"
 	Manual    EndpointCreationMode = "Manual"
 )
+
+func checkServiceConnection(endpoint *serviceendpoint.ServiceEndpoint) error {
+	if endpoint.Id != nil && (endpoint.Data == nil || endpoint.Type == nil) {
+		return fmt.Errorf("Service connection not fully returned, this appears to be a permission issue with PAT/SPN/identity etc.")
+	}
+	return nil
+}

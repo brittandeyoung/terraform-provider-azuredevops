@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/pipelineschecksextras"
+	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/sdk/pipelineschecksextras"
 )
 
-// CheckServiceEndpointExistsWithName verifies that a service endpoint of a particular type exists in the state,
+// CheckPipelineCheckExistsWithName verifies that a service endpoint of a particular type exists in the state,
 // and that it has the expected name when compared against the data in Azure DevOps.
 func CheckPipelineCheckExistsWithName(tfNode string, expectedName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
@@ -41,13 +41,13 @@ func CheckPipelineCheckExistsWithName(tfNode string, expectedName string) resour
 // This will be invoked *after* terraform destroys the resource but *before* the state is wiped clean.
 func CheckPipelineCheckDestroyed(resourceType string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		for _, resource := range s.RootModule().Resources {
-			if resource.Type != resourceType {
+		for _, res := range s.RootModule().Resources {
+			if res.Type != resourceType {
 				continue
 			}
 
 			// indicates the resource exists - this should fail the test
-			if _, err := getSvcEndpointFromState(resource); err == nil {
+			if _, err := getSvcEndpointFromState(res); err == nil {
 				return fmt.Errorf("Unexpectedly found a check that should have been deleted")
 			}
 		}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -16,7 +16,7 @@ func TestAccUsers_DataSource(t *testing.T) {
 		Providers: testutils.GetProviders(),
 		Steps: []resource.TestStep{
 			{
-				Config: hclDataUserBasic(userName),
+				Config: hclDataUsersBasic(userName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet(tfNode, "id"),
 					resource.TestCheckResourceAttr(tfNode, "users.#", "1"),
@@ -96,7 +96,7 @@ data "azuredevops_users" "test" {
 }`
 }
 
-func hclDataUserBasic(uname string) string {
+func hclDataUsersBasic(uname string) string {
 	return fmt.Sprintf(`
 resource "azuredevops_user_entitlement" "test" {
   principal_name       = "%[1]s"

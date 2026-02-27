@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/feed"
@@ -19,14 +18,17 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var FeedId = uuid.New().String()
-var ProjectId = uuid.New().String()
-var IdentityDescriptor = "some-identity-descriptor"
-var IdentityLegacyDescriptor = "some-legacy-identity-descriptor"
-var IdentityId = uuid.New()
-var Role = "reader"
+var (
+	FeedId                   = uuid.New().String()
+	ProjectId                = uuid.New().String()
+	IdentityDescriptor       = "some-identity-descriptor"
+	IdentityLegacyDescriptor = "some-legacy-identity-descriptor"
+	IdentityId               = uuid.New()
+	Role                     = "reader"
+)
 
 // verifies that if an error is produced on create, the error is not swallowed
 

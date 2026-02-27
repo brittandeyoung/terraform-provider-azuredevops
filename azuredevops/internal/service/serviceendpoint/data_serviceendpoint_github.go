@@ -18,14 +18,17 @@ func DataServiceEndpointGithub() *schema.Resource {
 }
 
 func dataSourceServiceEndpointGithubRead(d *schema.ResourceData, m interface{}) error {
-	serviceEndpoint, projectID, err := dataSourceGetBaseServiceEndpoint(d, m)
+	serviceEndpoint, err := dataSourceGetBaseServiceEndpoint(d, m)
 	if err != nil {
 		return err
 	}
-	if serviceEndpoint != nil {
+	if serviceEndpoint != nil && serviceEndpoint.Id != nil {
+		if err = checkServiceConnection(serviceEndpoint); err != nil {
+			return err
+		}
+		doBaseFlattening(d, serviceEndpoint)
 		d.Set("service_endpoint_id", serviceEndpoint.Id.String())
-		doBaseFlattening(d, serviceEndpoint, projectID.String())
 		return nil
 	}
-	return fmt.Errorf(" Looking up service endpoint!")
+	return fmt.Errorf("Looking up service endpoint!")
 }

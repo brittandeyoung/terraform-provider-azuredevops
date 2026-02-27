@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
@@ -17,11 +16,14 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var platformV2TestServiceEndpointIDpassword = uuid.New()
-var platformV2RandomServiceEndpointProjectIDpassword = uuid.New()
-var platformV2TestServiceEndpointProjectIDpassword = &artifactoryRandomServiceEndpointProjectIDpassword
+var (
+	platformV2TestServiceEndpointIDpassword          = uuid.New()
+	platformV2RandomServiceEndpointProjectIDpassword = uuid.New()
+	platformV2TestServiceEndpointProjectIDpassword   = &artifactoryRandomServiceEndpointProjectIDpassword
+)
 
 var platformV2TestServiceEndpointPassword = serviceendpoint.ServiceEndpoint{
 	Authorization: &serviceendpoint.EndpointAuthorization{
@@ -48,9 +50,11 @@ var platformV2TestServiceEndpointPassword = serviceendpoint.ServiceEndpoint{
 	},
 }
 
-var platformV2TestServiceEndpointID = uuid.New()
-var platformV2RandomServiceEndpointProjectID = uuid.New()
-var platformV2TestServiceEndpointProjectID = &artifactoryRandomServiceEndpointProjectID
+var (
+	platformV2TestServiceEndpointID          = uuid.New()
+	platformV2RandomServiceEndpointProjectID = uuid.New()
+	platformV2TestServiceEndpointProjectID   = &artifactoryRandomServiceEndpointProjectID
+)
 
 var platformV2TestServiceEndpoint = serviceendpoint.ServiceEndpoint{
 	Authorization: &serviceendpoint.EndpointAuthorization{
@@ -81,15 +85,17 @@ func testServiceEndpointplatformV2_ExpandFlatten_Roundtrip(t *testing.T, ep *ser
 	for _, ep := range []*serviceendpoint.ServiceEndpoint{ep, ep} {
 
 		resourceData := schema.TestResourceDataRaw(t, ResourceServiceEndpointJFrogPlatformV2().Schema, nil)
-		flattenServiceEndpointArtifactory(resourceData, ep, id.String())
+		resourceData.Set("project_id", (*ep.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+		flattenServiceEndpointArtifactory(resourceData, ep)
 
-		serviceEndpointAfterRoundTrip, projectID, err := expandServiceEndpointJFrogPlatformV2(resourceData)
+		serviceEndpointAfterRoundTrip, err := expandServiceEndpointJFrogPlatformV2(resourceData)
 		require.Nil(t, err)
 		require.Equal(t, *ep, *serviceEndpointAfterRoundTrip)
-		require.Equal(t, id, projectID)
+		require.Equal(t, id, (*serviceEndpointAfterRoundTrip.ServiceEndpointProjectReferences)[0].ProjectReference.Id)
 
 	}
 }
+
 func TestServiceEndpointplatformV2_ExpandFlatten_RoundtripPassword(t *testing.T) {
 	testServiceEndpointplatformV2_ExpandFlatten_Roundtrip(t, &platformV2TestServiceEndpointPassword, platformV2TestServiceEndpointProjectIDpassword)
 }
@@ -105,7 +111,8 @@ func testServiceEndpointplatformV2_Create_DoesNotSwallowError(t *testing.T, ep *
 
 	r := ResourceServiceEndpointJFrogPlatformV2()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointArtifactory(resourceData, ep, id.String())
+	resourceData.Set("project_id", (*ep.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointArtifactory(resourceData, ep)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -120,9 +127,11 @@ func testServiceEndpointplatformV2_Create_DoesNotSwallowError(t *testing.T, ep *
 	err := r.Create(resourceData, clients)
 	require.Contains(t, err.Error(), "CreateServiceEndpoint() Failed")
 }
+
 func TestServiceEndpointplatformV2_Create_DoesNotSwallowErrorToken(t *testing.T) {
 	testServiceEndpointplatformV2_Create_DoesNotSwallowError(t, &platformV2TestServiceEndpoint, platformV2TestServiceEndpointProjectID)
 }
+
 func TestServiceEndpointplatformV2_Create_DoesNotSwallowErrorPassword(t *testing.T) {
 	testServiceEndpointplatformV2_Create_DoesNotSwallowError(t, &platformV2TestServiceEndpointPassword, platformV2TestServiceEndpointProjectIDpassword)
 }
@@ -134,7 +143,8 @@ func testServiceEndpointplatformV2_Read_DoesNotSwallowError(t *testing.T, ep *se
 
 	r := ResourceServiceEndpointJFrogPlatformV2()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointArtifactory(resourceData, ep, id.String())
+	resourceData.Set("project_id", (*ep.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointArtifactory(resourceData, ep)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -152,9 +162,11 @@ func testServiceEndpointplatformV2_Read_DoesNotSwallowError(t *testing.T, ep *se
 	err := r.Read(resourceData, clients)
 	require.Contains(t, err.Error(), "GetServiceEndpoint() Failed")
 }
+
 func TestServiceEndpointplatformV2_Read_DoesNotSwallowErrorToken(t *testing.T) {
 	testServiceEndpointplatformV2_Read_DoesNotSwallowError(t, &platformV2TestServiceEndpoint, platformV2TestServiceEndpointProjectID)
 }
+
 func TestServiceEndpointplatformV2_Read_DoesNotSwallowErrorPassword(t *testing.T) {
 	testServiceEndpointplatformV2_Read_DoesNotSwallowError(t, &platformV2TestServiceEndpointPassword, platformV2TestServiceEndpointProjectIDpassword)
 }
@@ -166,7 +178,8 @@ func testServiceEndpointplatformV2_Delete_DoesNotSwallowError(t *testing.T, ep *
 
 	r := ResourceServiceEndpointJFrogPlatformV2()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointArtifactory(resourceData, ep, id.String())
+	resourceData.Set("project_id", (*ep.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointArtifactory(resourceData, ep)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -186,42 +199,19 @@ func testServiceEndpointplatformV2_Delete_DoesNotSwallowError(t *testing.T, ep *
 	err := r.Delete(resourceData, clients)
 	require.Contains(t, err.Error(), "DeleteServiceEndpoint() Failed")
 }
+
 func TestServiceEndpointplatformV2_Delete_DoesNotSwallowErrorToken(t *testing.T) {
 	testServiceEndpointplatformV2_Delete_DoesNotSwallowError(t, &platformV2TestServiceEndpoint, platformV2TestServiceEndpointProjectID)
 }
+
 func TestServiceEndpointplatformV2_Delete_DoesNotSwallowErrorPassword(t *testing.T) {
 	testServiceEndpointplatformV2_Delete_DoesNotSwallowError(t, &platformV2TestServiceEndpointPassword, platformV2TestServiceEndpointProjectIDpassword)
 }
 
-// verifies that if an error is produced on an update, it is not swallowed
-func testServiceEndpointplatformV2_Update_DoesNotSwallowError(t *testing.T, ep *serviceendpoint.ServiceEndpoint, id *uuid.UUID) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	r := ResourceServiceEndpointJFrogPlatformV2()
-	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointArtifactory(resourceData, ep, id.String())
-
-	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
-	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
-
-	expectedArgs := serviceendpoint.UpdateServiceEndpointArgs{
-		Endpoint:   ep,
-		EndpointId: ep.Id,
-	}
-
-	buildClient.
-		EXPECT().
-		UpdateServiceEndpoint(clients.Ctx, expectedArgs).
-		Return(nil, errors.New("UpdateServiceEndpoint() Failed")).
-		Times(1)
-
-	err := r.Update(resourceData, clients)
-	require.Contains(t, err.Error(), "UpdateServiceEndpoint() Failed")
-}
 func TestServiceEndpointplatformV2_Update_DoesNotSwallowErrorToken(t *testing.T) {
 	testServiceEndpointplatformV2_Delete_DoesNotSwallowError(t, &platformV2TestServiceEndpoint, platformV2TestServiceEndpointProjectID)
 }
+
 func TestServiceEndpointplatformV2_Update_DoesNotSwallowErrorPassword(t *testing.T) {
 	testServiceEndpointplatformV2_Delete_DoesNotSwallowError(t, &platformV2TestServiceEndpointPassword, platformV2TestServiceEndpointProjectIDpassword)
 }

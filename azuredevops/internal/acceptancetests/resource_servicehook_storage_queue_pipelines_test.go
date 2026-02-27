@@ -1,7 +1,3 @@
-//go:build (all || resource_check_required_template) && !exclude_approvalsandchecks
-// +build all resource_check_required_template
-// +build !exclude_approvalsandchecks
-
 package acceptancetests
 
 import (
@@ -9,8 +5,8 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -95,7 +91,7 @@ func TestAccServicehookStorageQueuePipelines_accountKeyError(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      testutils.HclServicehookStorageQeueuePipelinesResourceWithStageEvent(projectName, "accountkey", "testqueue", "Canceled", "Canceled"),
-				ExpectError: regexp.MustCompile("expected length of account_key to be in the range \\(64 - 100\\)"),
+				ExpectError: regexp.MustCompile(`expected length of account_key to be in the range (64 - 100)`),
 			},
 		},
 	})

@@ -1,14 +1,10 @@
-//go:build (all || resource_serviceendpoint_artifactory) && !exclude_serviceendpoints
-// +build all resource_serviceendpoint_artifactory
-// +build !exclude_serviceendpoints
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -239,13 +235,13 @@ func TestAccServiceEndpointArtifactory_RequiresImportErrorStepUsernamePassword(t
 func hclSvcEndpointArtifactoryResourceBasic(projectName string, serviceEndpointName string, description string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_artifactory" "test" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%s"
-	authentication_token {
-		token			   	   = "redacted"
-	}
-	url			   		   = "http://url.com/1"
-	description 		   = "%s"
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%s"
+  authentication_token {
+    token = "redacted"
+  }
+  url         = "http://url.com/1"
+  description = "%s"
 }`, serviceEndpointName, description)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -255,14 +251,14 @@ resource "azuredevops_serviceendpoint_artifactory" "test" {
 func hclSvcEndpointArtifactoryResourceBasicUsernamePassword(projectName string, serviceEndpointName string, description string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_artifactory" "test" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%s"
-	authentication_basic {
-		username			   = "u"
-		password			   = "redacted"
-	}
-	url			   		   = "http://url.com/1"
-	description 		   = "%s"
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%s"
+  authentication_basic {
+    username = "u"
+    password = "redacted"
+  }
+  url         = "http://url.com/1"
+  description = "%s"
 }`, serviceEndpointName, description)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -272,14 +268,14 @@ resource "azuredevops_serviceendpoint_artifactory" "test" {
 func hclSvcEndpointArtifactoryResourceCompleteUsernamePassword(projectName string, serviceEndpointName string, description string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_artifactory" "test" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%s"
-	description            = "%s"
-	authentication_basic {
-		username			   = "u"
-		password			   = "redacted"
-	}
-	url			   		   = "https://url.com/1"
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%s"
+  description           = "%s"
+  authentication_basic {
+    username = "u"
+    password = "redacted"
+  }
+  url = "https://url.com/1"
 }`, serviceEndpointName, description)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -289,13 +285,13 @@ resource "azuredevops_serviceendpoint_artifactory" "test" {
 func hclSvcEndpointArtifactoryResourceComplete(projectName string, serviceEndpointName string, description string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_artifactory" "test" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%s"
-	description            = "%s"
-	authentication_token {
-		token          = "redacted"
-	}
-	  url			   		   = "https://url.com/1"
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%s"
+  description           = "%s"
+  authentication_token {
+    token = "redacted"
+  }
+  url = "https://url.com/1"
 }`, serviceEndpointName, description)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -305,13 +301,13 @@ resource "azuredevops_serviceendpoint_artifactory" "test" {
 func hclSvcEndpointArtifactoryResourceUpdate(projectName string, serviceEndpointName string, description string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_artifactory" "test" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%s"
-	description            = "%s"
-	authentication_token {
-		token          = "redacted2"
-	}
-	  url			   		   = "https://url.com/2"
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%s"
+  description           = "%s"
+  authentication_token {
+    token = "redacted2"
+  }
+  url = "https://url.com/2"
 }`, serviceEndpointName, description)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -321,14 +317,14 @@ resource "azuredevops_serviceendpoint_artifactory" "test" {
 func hclSvcEndpointArtifactoryResourceUpdateUsernamePassword(projectName string, serviceEndpointName string, description string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_artifactory" "test" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%s"
-	description            = "%s"
-	authentication_basic {
-		username			   = "u2"
-		password			   = "redacted2"
-	}
-	url			   		   = "https://url.com/2"
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%s"
+  description           = "%s"
+  authentication_basic {
+    username = "u2"
+    password = "redacted2"
+  }
+  url = "https://url.com/2"
 }`, serviceEndpointName, description)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -340,28 +336,12 @@ func hclSvcEndpointArtifactoryResourceRequiresImport(projectName string, service
 	return fmt.Sprintf(`
 %s
 resource "azuredevops_serviceendpoint_artifactory" "import" {
-  project_id                = azuredevops_serviceendpoint_artifactory.test.project_id
+  project_id            = azuredevops_serviceendpoint_artifactory.test.project_id
   service_endpoint_name = azuredevops_serviceendpoint_artifactory.test.service_endpoint_name
-  description            = azuredevops_serviceendpoint_artifactory.test.description
-  url          = azuredevops_serviceendpoint_artifactory.test.url
+  description           = azuredevops_serviceendpoint_artifactory.test.description
+  url                   = azuredevops_serviceendpoint_artifactory.test.url
   authentication_token {
-	  token          = "redacted"
-  }
-}
-`, template)
-}
-func hclSvcEndpointArtifactoryResourceRequiresImportUsernamePassword(projectName string, serviceEndpointName string, description string) string {
-	template := hclSvcEndpointArtifactoryResourceBasicUsernamePassword(projectName, serviceEndpointName, description)
-	return fmt.Sprintf(`
-%s
-resource "azuredevops_serviceendpoint_artifactory" "import" {
-  project_id                = azuredevops_serviceendpoint_artifactory.test.project_id
-  service_endpoint_name = azuredevops_serviceendpoint_artifactory.test.service_endpoint_name
-  description            = azuredevops_serviceendpoint_artifactory.test.description
-  url          	= azuredevops_serviceendpoint_artifactory.test.url
-  authentication_basic {
-	username			   = "u"
-	password			   = "redacted"
+    token = "redacted"
   }
 }
 `, template)

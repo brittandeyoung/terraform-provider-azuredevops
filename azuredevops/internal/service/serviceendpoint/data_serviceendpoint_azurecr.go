@@ -72,12 +72,15 @@ func DataResourceServiceEndpointAzureCR() *schema.Resource {
 }
 
 func dataSourceServiceEndpointAzureCRRead(d *schema.ResourceData, m interface{}) error {
-	serviceEndpoint, projectID, err := dataSourceGetBaseServiceEndpoint(d, m)
+	serviceEndpoint, err := dataSourceGetBaseServiceEndpoint(d, m)
 	if err != nil {
 		return err
 	}
-	if serviceEndpoint != nil {
-		doBaseFlattening(d, serviceEndpoint, projectID.String())
+	if serviceEndpoint != nil && serviceEndpoint.Id != nil {
+		if err = checkServiceConnection(serviceEndpoint); err != nil {
+			return err
+		}
+		doBaseFlattening(d, serviceEndpoint)
 		d.Set("azurecr_spn_tenantid", (*serviceEndpoint.Authorization.Parameters)["tenantId"])
 		d.Set("azurecr_subscription_id", (*serviceEndpoint.Data)["subscriptionId"])
 		d.Set("azurecr_subscription_name", (*serviceEndpoint.Data)["subscriptionName"])
@@ -89,11 +92,11 @@ func dataSourceServiceEndpointAzureCRRead(d *schema.ResourceData, m interface{})
 		d.Set("service_principal_id", (*serviceEndpoint.Authorization.Parameters)["serviceprincipalid"])
 
 		scope := (*serviceEndpoint.Authorization.Parameters)["scope"]
-		s := strings.SplitN(scope, "/", -1)
+		s := strings.Split(scope, "/")
 		d.Set("resource_group", s[4])
 		d.Set("azurecr_name", s[8])
 
 		return nil
 	}
-	return fmt.Errorf(" Looking up service endpoint!")
+	return fmt.Errorf("Looking up service endpoint!")
 }

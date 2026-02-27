@@ -1,7 +1,3 @@
-//go:build (all || core || resource_git_repository_file) && !exclude_resource_git_repository_file
-// +build all core resource_git_repository_file
-// +build !exclude_resource_git_repository_file
-
 package acceptancetests
 
 import (
@@ -12,14 +8,113 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 )
 
-func TestAccGitRepoFile_CreateAndUpdate(t *testing.T) {
+func TestAccGitRepoFile_basic(t *testing.T) {
+	projectName := testutils.GenerateResourceName()
+	gitRepoName := testutils.GenerateResourceName()
+	tfRepoFileNode := "azuredevops_git_repository_file.test"
+
+	branch := "refs/heads/master"
+	file := "foo.txt"
+	contentFirst := "bar"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:  func() { testutils.PreCheck(t, nil) },
+		Providers: testutils.GetProviders(),
+		Steps: []resource.TestStep{
+			{
+				Config: hclGitRepositoryFileBasic(projectName, gitRepoName, branch, file, contentFirst),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(tfRepoFileNode, "file", file),
+					resource.TestCheckResourceAttr(tfRepoFileNode, "content", contentFirst),
+					resource.TestCheckResourceAttr(tfRepoFileNode, "branch", branch),
+					resource.TestCheckResourceAttrSet(tfRepoFileNode, "commit_message"),
+					checkGitRepoFileContent(contentFirst),
+				),
+			},
+			{
+				ResourceName:      tfRepoFileNode,
+				ImportStateIdFunc: repositoryFileIdFunc(tfRepoFileNode),
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccGitRepoFile_complete(t *testing.T) {
+	projectName := testutils.GenerateResourceName()
+	gitRepoName := testutils.GenerateResourceName()
+	tfRepoFileNode := "azuredevops_git_repository_file.test"
+
+	branch := "refs/heads/master"
+	file := "foo.txt"
+	contentFirst := "bar"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:  func() { testutils.PreCheck(t, nil) },
+		Providers: testutils.GetProviders(),
+		Steps: []resource.TestStep{
+			{
+				Config: hclGitRepositoryFileComplete(projectName, gitRepoName, branch, file, contentFirst),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(tfRepoFileNode, "file", file),
+					resource.TestCheckResourceAttr(tfRepoFileNode, "content", contentFirst),
+					resource.TestCheckResourceAttr(tfRepoFileNode, "branch", branch),
+					resource.TestCheckResourceAttrSet(tfRepoFileNode, "commit_message"),
+					checkGitRepoFileContent(contentFirst),
+				),
+			},
+			{
+				ResourceName:      tfRepoFileNode,
+				ImportStateIdFunc: repositoryFileIdFunc(tfRepoFileNode),
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccGitRepoFile_authorEmailPolicy(t *testing.T) {
+	projectName := testutils.GenerateResourceName()
+	gitRepoName := testutils.GenerateResourceName()
+	tfRepoFileNode := "azuredevops_git_repository_file.test"
+
+	branch := "refs/heads/master"
+	file := "foo.txt"
+	contentFirst := "bar"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:  func() { testutils.PreCheck(t, nil) },
+		Providers: testutils.GetProviders(),
+		Steps: []resource.TestStep{
+			{
+				Config: hclGitRepositoryFileAuthorEmailPolicy(projectName, gitRepoName, branch, file, contentFirst),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(tfRepoFileNode, "file", file),
+					resource.TestCheckResourceAttr(tfRepoFileNode, "content", contentFirst),
+					resource.TestCheckResourceAttr(tfRepoFileNode, "branch", branch),
+					resource.TestCheckResourceAttrSet(tfRepoFileNode, "commit_message"),
+					checkGitRepoFileContent(contentFirst),
+				),
+			},
+			{
+				ResourceName:      tfRepoFileNode,
+				ImportStateIdFunc: repositoryFileIdFunc(tfRepoFileNode),
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccGitRepoFile_update(t *testing.T) {
 	projectName := testutils.GenerateResourceName()
 	gitRepoName := testutils.GenerateResourceName()
 	tfRepoFileNode := "azuredevops_git_repository_file.test"
@@ -44,6 +139,12 @@ func TestAccGitRepoFile_CreateAndUpdate(t *testing.T) {
 				),
 			},
 			{
+				ResourceName:      tfRepoFileNode,
+				ImportStateIdFunc: repositoryFileIdFunc(tfRepoFileNode),
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			{
 				Config: hclGitRepositoryFileBasic(projectName, gitRepoName, branch, file, contentSecond),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(tfRepoFileNode, "file", file),
@@ -52,6 +153,12 @@ func TestAccGitRepoFile_CreateAndUpdate(t *testing.T) {
 					resource.TestCheckResourceAttrSet(tfRepoFileNode, "commit_message"),
 					checkGitRepoFileContent(contentSecond),
 				),
+			},
+			{
+				ResourceName:      tfRepoFileNode,
+				ImportStateIdFunc: repositoryFileIdFunc(tfRepoFileNode),
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 			{
 				Config: hclGitRepositoryFileWithoutFile(projectName, gitRepoName),
@@ -63,7 +170,7 @@ func TestAccGitRepoFile_CreateAndUpdate(t *testing.T) {
 	})
 }
 
-func TestAccGitRepoFile_IncorrectBranch(t *testing.T) {
+func TestAccGitRepoFile_incorrectBranch(t *testing.T) {
 	projectName := testutils.GenerateResourceName()
 	gitRepoName := testutils.GenerateResourceName()
 
@@ -79,13 +186,23 @@ func TestAccGitRepoFile_IncorrectBranch(t *testing.T) {
 	})
 }
 
+func repositoryFileIdFunc(resourceName string) resource.ImportStateIdFunc {
+	return func(s *terraform.State) (string, error) {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return "", fmt.Errorf("Resource node not found: %s", resourceName)
+		}
+		return fmt.Sprintf("%s/%s", rs.Primary.Attributes["repository_id"], rs.Primary.Attributes["file"]), nil
+	}
+}
+
 func checkGitRepoFileNotExists(fileName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		clients := testutils.GetProvider().Meta().(*client.AggregatedClient)
 
 		repo, ok := s.RootModule().Resources["azuredevops_git_repository.test"]
 		if !ok {
-			return fmt.Errorf(" Did not find a repo definition in the TF state")
+			return fmt.Errorf("Did not find a repo definition in the TF state")
 		}
 
 		ctx := context.Background()
@@ -107,7 +224,7 @@ func checkGitRepoFileContent(expectedContent string) resource.TestCheckFunc {
 
 		gitFile, ok := s.RootModule().Resources["azuredevops_git_repository_file.test"]
 		if !ok {
-			return fmt.Errorf(" Did not find a repo definition in the TF state")
+			return fmt.Errorf("Did not find a repo definition in the TF state")
 		}
 
 		fileID := gitFile.Primary.ID
@@ -160,6 +277,77 @@ resource "azuredevops_git_repository_file" "test" {
   branch        = "%[3]s"
   file          = "%[4]s"
   content       = "%[5]s"
+}
+`, name, repoName, branch, file, content)
+}
+
+func hclGitRepositoryFileComplete(name, repoName, branch, file, content string) string {
+	return fmt.Sprintf(`
+resource "azuredevops_project" "test" {
+  name               = "%[1]s"
+  description        = "description"
+  visibility         = "private"
+  version_control    = "Git"
+  work_item_template = "Agile"
+}
+
+resource "azuredevops_git_repository" "test" {
+  project_id = azuredevops_project.test.id
+  name       = "%[2]s"
+  initialization {
+    init_type = "Clean"
+  }
+}
+
+resource "azuredevops_git_repository_file" "test" {
+  repository_id   = azuredevops_git_repository.test.id
+  branch          = "%[3]s"
+  file            = "%[4]s"
+  content         = "%[5]s"
+  author_name     = "author"
+  author_email    = "auhtor@test.com"
+  committer_name  = "comitter"
+  committer_email = "committer@test.com"
+}
+`, name, repoName, branch, file, content)
+}
+
+func hclGitRepositoryFileAuthorEmailPolicy(name, repoName, branch, file, content string) string {
+	return fmt.Sprintf(`
+resource "azuredevops_project" "test" {
+  name               = "%[1]s"
+  description        = "description"
+  visibility         = "private"
+  version_control    = "Git"
+  work_item_template = "Agile"
+}
+
+resource "azuredevops_git_repository" "test" {
+  project_id = azuredevops_project.test.id
+  name       = "%[2]s"
+  initialization {
+    init_type = "Clean"
+  }
+}
+
+resource "azuredevops_repository_policy_author_email_pattern" "test" {
+  project_id            = azuredevops_project.test.id
+  enabled               = true
+  blocking              = true
+  author_email_patterns = ["auhtor@test.com"]
+  repository_ids        = [azuredevops_git_repository.test.id]
+}
+
+resource "azuredevops_git_repository_file" "test" {
+  repository_id   = azuredevops_git_repository.test.id
+  branch          = "%[3]s"
+  file            = "%[4]s"
+  content         = "%[5]s"
+  author_name     = "author"
+  author_email    = "auhtor@test.com"
+  committer_name  = "comitter"
+  committer_email = "committer@test.com"
+  depends_on      = [azuredevops_repository_policy_author_email_pattern.test]
 }
 `, name, repoName, branch, file, content)
 }

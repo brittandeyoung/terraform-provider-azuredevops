@@ -167,18 +167,33 @@ resource "azuredevops_check_business_hours" "example" {
 The following arguments are supported:
 
 * `project_id` - (Required) The project ID.
+
 * `target_resource_id` - (Required) The ID of the resource being protected by the check.
-* `target_resource_type` - (Required) The type of resource being protected by the check. Valid values: `endpoint`, `environment`, `queue`, `repository`, `securefile`, `variablegroup`.
+
+* `target_resource_type` - (Required) The type of resource being protected by the check. Possible values are: `endpoint`, `environment`, `queue`, `repository`, `securefile`, `variablegroup`.
+
 * `display_name` - (Required) The name of the business hours check displayed in the web UI.
+
 * `start_time` - (Required) The beginning of the time period that this check will be allowed to pass, specified as 24-hour time with leading zeros.
+
 * `end_time` - (Required) The end of the time period that this check will be allowed to pass, specified as 24-hour time with leading zeros.
+
 * `time_zone` - (Required) The time zone this check will be evaluated in. See below for supported values.
+
+---
+
 * `monday` - (Optional) This check will pass on Mondays. Defaults to `false`.
+
 * `tuesday` - (Optional) This check will pass on Tuesday. Defaults to `false`.
+
 * `wednesday` - (Optional) This check will pass on Wednesdays. Defaults to `false`.
+
 * `thursday` - (Optional) This check will pass on Thursdays. Defaults to `false`.
+
 * `friday` - (Optional) This check will pass on Fridays. Defaults to `false`.
+
 * `saturday` - (Optional) This check will pass on Saturdays. Defaults to `false`.
+
 * `sunday` - (Optional) This check will pass on Sundays. Defaults to `false`.
 
 ---
@@ -195,6 +210,15 @@ In addition to all arguments above, the following attributes are exported:
 ## Relevant Links
 
 - [Define approvals and checks](https://learn.microsoft.com/en-us/azure/devops/pipelines/process/approvals?view=azure-devops&tabs=check-pass)
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 2 minutes) Used when creating the Business Hours Check.
+* `read` - (Defaults to 1 minute) Used when retrieving the Business Hours Check.
+* `update` - (Defaults to 2 minutes) Used when updating the Business Hours Check.
+* `delete` - (Defaults to 2 minutes) Used when deleting the Business Hours Check.
 
 ## Import
 

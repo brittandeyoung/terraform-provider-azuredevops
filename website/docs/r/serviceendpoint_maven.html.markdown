@@ -52,8 +52,8 @@ resource "azuredevops_serviceendpoint_maven" "example" {
   repository_id         = "example"
 
   authentication_basic {
-    username              = "username"
-    password              = "password"
+    username = "username"
+    password = "password"
   }
 }
 ```
@@ -63,23 +63,34 @@ resource "azuredevops_serviceendpoint_maven" "example" {
 The following arguments are supported:
 
 * `project_id` - (Required) The ID of the project. Changing this forces a new Service Connection Maven to be created.
+
 * `service_endpoint_name` - (Required) The name of the service endpoint. Changing this forces a new Service Connection Maven to be created.
+
 * `url` - (Required) The URL of the Maven Repository.
+
 * `repository_id` - (Required) The ID of the server that matches the id element of the `repository/mirror` that Maven tries to connect to.
 
 ---
+
 * `description` - (Optional) The Service Endpoint description. Defaults to Managed by Terraform.
+
 * `authentication_token` - (Optional) A `authentication_token` block as documented below.
+
 * `authentication_basic` - (Optional) A `authentication_basic` block as documented below.
 
---- 
+---
+
 A `authentication_token` block supports the following:
-* `token` - Authentication Token generated through maven repository.
+
+* `token` - (Required) Authentication Token generated through maven repository.
 
 ---
+
 A `authentication_basic` block supports the following:
-* `username` - The Username of the Maven Repository.
-* `password` - The password Maven Repository.
+
+* `username` - (Required) The Username of the Maven Repository.
+
+* `password` - (Required) The password Maven Repository.
 
 ## Attributes Reference
 
@@ -88,9 +99,18 @@ In addition to the Arguments listed above - the following Attributes are exporte
 * `id` - The ID of the service endpoint.
 * `project_id` - The ID of the project.
 
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 2 minutes) Used when creating the Maven Service Endpoint.
+* `read` - (Defaults to 1 minute) Used when retrieving the Maven Service Endpoint.
+* `update` - (Defaults to 2 minutes) Used when updating the Maven Service Endpoint.
+* `delete` - (Defaults to 2 minutes) Used when deleting the Maven Service Endpoint.
+
 ## Import
 
-Service Connection Maven can be imported using the `projectId/id` or or `projectName/id`, e.g.
+Azure DevOps Maven Service Connection can be imported using the `projectId/id` or `projectName/id`, e.g.
 
 ```shell
 terraform import azuredevops_serviceendpoint_maven.example projectName/00000000-0000-0000-0000-000000000000

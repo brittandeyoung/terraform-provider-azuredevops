@@ -35,11 +35,18 @@ resource "azuredevops_serviceendpoint_incomingwebhook" "example" {
 The following arguments are supported:
 
 * `project_id` - (Required) The ID of the project. Changing this forces a new Service Connection Incoming WebHook to be created.
+
 * `webhook_name` - (Required) The name of the WebHook.
-* `secret` - (Optional) Secret for the WebHook. WebHook service will use this secret to calculate the payload checksum.
-* `http_header` - (Optional) Http header name on which checksum will be sent.
+
 * `service_endpoint_name` - (Required) The name of the service endpoint. Changing this forces a new Service Connection Incoming WebHook to be created.
+
+---
+
 * `description` - (Optional) The Service Endpoint description. Defaults to Managed by Terraform.
+
+* `http_header` - (Optional) Http header name on which checksum will be sent.
+
+* `secret` - (Optional) Secret for the WebHook. WebHook service will use this secret to calculate the payload checksum.
 
 ## Attributes Reference
 
@@ -50,16 +57,16 @@ In addition to the Arguments listed above - the following Attributes are exporte
 
 ## Timeouts
 
-The `timeouts` block allows you to specify [timeouts](https://www.terraform.io/docs/configuration/resources.html#timeouts) for certain actions:
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeout) for certain actions:
 
-* `create` - (Defaults to 2 minutes) Used when creating the Service Connection Incoming WebHook.
-* `read` - (Defaults to 1 minute) Used when retrieving the Service Connection Incoming WebHook.
-* `update` - (Defaults to 2 minutes) Used when updating the Service Connection Incoming WebHook.
-* `delete` - (Defaults to 2 minutes) Used when deleting the Service Connection Incoming WebHook.
+* `create` - (Defaults to 2 minutes) Used when creating the Incoming WebHook Service Endpoint.
+* `read` - (Defaults to 1 minute) Used when retrieving the Incoming WebHook Service Endpoint.
+* `update` - (Defaults to 2 minutes) Used when updating the Incoming WebHook Service Endpoint.
+* `delete` - (Defaults to 2 minutes) Used when deleting the Incoming WebHook Service Endpoint.
 
 ## Import
 
-Azure DevOps Service Endpoint Incoming WebHook can be imported using **projectID/serviceEndpointID** or **projectName/serviceEndpointID**
+Azure DevOps Incoming WebHook Service Endpoint can be imported using **projectID/serviceEndpointID** or **projectName/serviceEndpointID**
 
 ```shell
 terraform import azuredevops_serviceendpoint_incomingwebhook.example 00000000-0000-0000-0000-000000000000/00000000-0000-0000-0000-000000000000

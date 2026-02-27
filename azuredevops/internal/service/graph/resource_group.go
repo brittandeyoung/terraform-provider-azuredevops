@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/graph"
@@ -126,7 +126,10 @@ func resourceGroupCreate(d *schema.ResourceData, m interface{}) error {
 
 	var scopeDescriptor *string
 	if val, ok := d.GetOk("scope"); ok {
-		scopeUid, _ := uuid.Parse(val.(string))
+		scopeUid, err := uuid.Parse(val.(string))
+		if err != nil {
+			return fmt.Errorf("Parsing scope: %+v", err)
+		}
 		desc, err := clients.GraphClient.GetDescriptor(clients.Ctx, graph.GetDescriptorArgs{
 			StorageKey: &scopeUid,
 		})
@@ -178,7 +181,7 @@ func resourceGroupCreate(d *schema.ResourceData, m interface{}) error {
 	if ok {
 		members := expandGroupMembers(*group.Descriptor, stateMembers.(*schema.Set))
 		if err := addMembers(clients, members); err != nil {
-			return fmt.Errorf(" adding group memberships during create: %+v", err)
+			return fmt.Errorf("adding group memberships during create: %+v", err)
 		}
 	}
 
@@ -192,13 +195,17 @@ func resourceGroupRead(d *schema.ResourceData, m interface{}) error {
 	group, err := clients.GraphClient.GetGroup(
 		clients.Ctx,
 		graph.GetGroupArgs{GroupDescriptor: converter.String(d.Id())})
-
 	if err != nil {
 		if utils.ResponseWasNotFound(err) {
 			d.SetId("")
 			return nil
 		}
 		return err
+	}
+
+	if group.IsDeleted != nil && *group.IsDeleted {
+		d.SetId("")
+		return nil
 	}
 
 	members, err := groupReadMembers(*group.Descriptor, clients)
@@ -281,7 +288,7 @@ func resourceGroupUpdate(d *schema.ResourceData, m interface{}) error {
 func resourceGroupDelete(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
 
-	stateConf := &resource.StateChangeConf{
+	stateConf := &retry.StateChangeConf{
 		Pending: []string{"Waiting"},
 		Target:  []string{"Succeed", "Failed"},
 		Refresh: func() (interface{}, string, error) {
@@ -302,7 +309,7 @@ func resourceGroupDelete(d *schema.ResourceData, m interface{}) error {
 	}
 
 	if _, err := stateConf.WaitForStateContext(clients.Ctx); err != nil {
-		return fmt.Errorf(" Waiting for group delete. %v ", err)
+		return fmt.Errorf("Waiting for group delete. %v ", err)
 	}
 
 	return nil
@@ -358,7 +365,7 @@ func groupReadMembers(groupDescriptor string, clients *client.AggregatedClient) 
 		Depth:             converter.Int(1),
 	})
 	if err != nil {
-		return nil, fmt.Errorf(" Reading group memberships: %+v", err)
+		return nil, fmt.Errorf("Reading group memberships: %+v", err)
 	}
 
 	members := make([]graph.GraphMembership, len(*actualMembers))

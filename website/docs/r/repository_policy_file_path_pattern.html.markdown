@@ -59,21 +59,36 @@ resource "azuredevops_repository_policy_file_path_pattern" "examplep" {
 
 The following arguments are supported:
 
-- `project_id` - (Required) The ID of the project in which the policy will be created.
-- `enabled` - (Optional) A flag indicating if the policy should be enabled. Defaults to `true`.
-- `blocking` - (Optional) A flag indicating if the policy should be blocking. Defaults to `true`.
-- `filepath_patterns` - (Required) Block pushes from introducing file paths that match the following patterns. Exact paths begin with "/". You can specify exact paths and wildcards. You can also specify multiple paths using ";" as a separator. Paths prefixed with "!" are excluded. Order is important.
-- `repository_ids` (Optional) Control whether the policy is enabled for the repository or the project. If `repository_ids` not configured, the policy will be set to the project.
+* `project_id` - (Required) The ID of the project in which the policy will be created.
+
+* `filepath_patterns` - (Required) Block pushes from introducing file paths that match the following patterns. Exact paths begin with "/". You can specify exact paths and wildcards. You can also specify multiple paths using ";" as a separator. Paths prefixed with "!" are excluded. Order is important.
+
+---
+
+* `blocking` - (Optional) A flag indicating if the policy should be blocking. Defaults to `true`.
+
+* `enabled` - (Optional) A flag indicating if the policy should be enabled. Defaults to `true`.
+
+* `repository_ids` (Optional) Control whether the policy is enabled for the repository or the project. If `repository_ids` not configured, the policy will be set to the project.
 
 ## Attributes Reference
 
 In addition to all arguments above, the following attributes are exported:
 
-- `id` - The ID of the repository policy.
+* `id` - The ID of the repository policy.
 
 ## Relevant Links
 
 - [Azure DevOps Service REST API 7.0 - Policy Configurations](https://docs.microsoft.com/en-us/rest/api/azure/devops/policy/configurations?view=azure-devops-rest-7.0)
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 30 minutes) Used when creating the File Path Pattern Repository Policy.
+* `read` - (Defaults to 5 minute) Used when retrieving the File Path Pattern Repository Policy.
+* `update` - (Defaults to 30 minutes) Used when updating the File Path Pattern Repository Policy.
+* `delete` - (Defaults to 30 minutes) Used when deleting the File Path Pattern Repository Policy.
 
 ## Import
 

@@ -125,12 +125,12 @@ func resourceGroupEntitlementCreate(d *schema.ResourceData, m interface{}) error
 	clients := m.(*client.AggregatedClient)
 	groupEntitlement, err := expandGroupEntitlement(d)
 	if err != nil {
-		return fmt.Errorf(" Creating group entitlement: %v", err)
+		return fmt.Errorf("Creating group entitlement: %v", err)
 	}
 
 	addedGroupEntitlement, err := addGroupEntitlement(clients, groupEntitlement)
 	if err != nil {
-		return fmt.Errorf(" Creating group entitlement: %v", err)
+		return fmt.Errorf("Creating group entitlement: %v", err)
 	}
 
 	d.SetId(addedGroupEntitlement.Id.String())
@@ -142,21 +142,21 @@ func resourceGroupEntitlementRead(d *schema.ResourceData, m interface{}) error {
 	groupEntitlementID := d.Id()
 	id, err := uuid.Parse(groupEntitlementID)
 	if err != nil {
-		return fmt.Errorf(" Parsing GroupEntitlementID: %s. %v", groupEntitlementID, err)
+		return fmt.Errorf("Parsing GroupEntitlementID: %s. %v", groupEntitlementID, err)
 	}
 	groupEntitlement, err := clients.MemberEntitleManagementClient.GetGroupEntitlement(clients.Ctx, memberentitlementmanagement.GetGroupEntitlementArgs{
 		GroupId: &id,
 	})
-
 	if err != nil {
 		if utils.ResponseWasNotFound(err) {
 			d.SetId("")
 			return nil
 		}
-		return fmt.Errorf(" reading group entitlement: %v", err)
+		return fmt.Errorf("reading group entitlement: %v", err)
 	}
 
-	if groupEntitlement == nil || groupEntitlement.Id == nil {
+	if groupEntitlement == nil || groupEntitlement.Id == nil ||
+		(groupEntitlement.Group != nil && groupEntitlement.Group.IsDeleted != nil && *groupEntitlement.Group.IsDeleted) {
 		log.Println(" Group has been deleted")
 		d.SetId("")
 		return nil
@@ -170,7 +170,7 @@ func resourceGroupEntitlementUpdate(d *schema.ResourceData, m interface{}) error
 	groupEntitlementID := d.Id()
 	id, err := uuid.Parse(groupEntitlementID)
 	if err != nil {
-		return fmt.Errorf(" Parsing GroupEntitlement ID. GroupEntitlementID: %s. %v", groupEntitlementID, err)
+		return fmt.Errorf("Parsing GroupEntitlement ID. GroupEntitlementID: %s. %v", groupEntitlementID, err)
 	}
 
 	accountLicenseType, err := converter.AccountLicenseType(d.Get("account_license_type").(string))
@@ -179,7 +179,7 @@ func resourceGroupEntitlementUpdate(d *schema.ResourceData, m interface{}) error
 	}
 	licensingSource, ok := d.GetOk("licensing_source")
 	if !ok {
-		return fmt.Errorf(" Reading account licensing source for GroupEntitlementID: %s", groupEntitlementID)
+		return fmt.Errorf("Reading account licensing source for GroupEntitlementID: %s", groupEntitlementID)
 	}
 
 	clients := m.(*client.AggregatedClient)
@@ -202,15 +202,14 @@ func resourceGroupEntitlementUpdate(d *schema.ResourceData, m interface{}) error
 				},
 			},
 		})
-
 	if err != nil {
-		return fmt.Errorf(" Updating group entitlement: %v", err)
+		return fmt.Errorf("Updating group entitlement: %v", err)
 	}
 
 	result := *patchResponse.Results
 
 	if !*result[0].IsSuccess {
-		return fmt.Errorf(" Updating group entitlement: %s", getGroupEntitlementAPIErrorMessage(&result))
+		return fmt.Errorf("Updating group entitlement: %s", getGroupEntitlementAPIErrorMessage(&result))
 	}
 	return resourceGroupEntitlementRead(d, m)
 }
@@ -223,7 +222,7 @@ func resourceGroupEntitlementDelete(d *schema.ResourceData, m interface{}) error
 	groupEntitlementID := d.Id()
 	id, err := uuid.Parse(groupEntitlementID)
 	if err != nil {
-		return fmt.Errorf(" Parsing GroupEntitlement ID. GroupEntitlementID: %s. %v", groupEntitlementID, err)
+		return fmt.Errorf("Parsing GroupEntitlement ID. GroupEntitlementID: %s. %v", groupEntitlementID, err)
 	}
 
 	clients := m.(*client.AggregatedClient)
@@ -231,9 +230,8 @@ func resourceGroupEntitlementDelete(d *schema.ResourceData, m interface{}) error
 	_, err = clients.MemberEntitleManagementClient.DeleteGroupEntitlement(m.(*client.AggregatedClient).Ctx, memberentitlementmanagement.DeleteGroupEntitlementArgs{
 		GroupId: &id,
 	})
-
 	if err != nil {
-		return fmt.Errorf(" Deleting group entitlement: %v", err)
+		return fmt.Errorf("Deleting group entitlement: %v", err)
 	}
 
 	// Also delete the org wise group if the group is Azure DevOps local, meaning
@@ -243,9 +241,8 @@ func resourceGroupEntitlementDelete(d *schema.ResourceData, m interface{}) error
 		err = clients.GraphClient.DeleteGroup(clients.Ctx, graph.DeleteGroupArgs{
 			GroupDescriptor: converter.String(d.Get("descriptor").(string)),
 		})
-
 		if err != nil {
-			return fmt.Errorf(" Deleting Azure DevOps local group: %v", err)
+			return fmt.Errorf("Deleting Azure DevOps local group: %v", err)
 		}
 	}
 
@@ -255,20 +252,23 @@ func resourceGroupEntitlementDelete(d *schema.ResourceData, m interface{}) error
 func importGroupEntitlement(d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
 	upn := d.Id()
 	id, err := uuid.Parse(upn)
-
 	if err != nil {
-		return nil, fmt.Errorf(" Only UUID values can used for import [%s]", upn)
+		return nil, fmt.Errorf("Only UUID values can used for import [%s]", upn)
 	}
 
 	clients := m.(*client.AggregatedClient)
-	result, err := clients.MemberEntitleManagementClient.GetGroupEntitlement(clients.Ctx, memberentitlementmanagement.GetGroupEntitlementArgs{
+	resp, err := clients.MemberEntitleManagementClient.GetGroupEntitlement(clients.Ctx, memberentitlementmanagement.GetGroupEntitlementArgs{
 		GroupId: &id,
 	})
 	if err != nil {
-		return nil, fmt.Errorf(" Getting the group entitlement with supplied id %s: %s", upn, err)
+		return nil, fmt.Errorf("Getting the group entitlement with supplied id %s: %s", upn, err)
 	}
 
-	d.SetId((*result).Id.String())
+	if resp == nil || resp.Id == nil {
+		return nil, fmt.Errorf("Group entitlement with ID: %s not found", upn)
+	}
+
+	d.SetId(resp.Id.String())
 
 	return []*schema.ResourceData{d}, nil
 }
@@ -318,7 +318,6 @@ func addGroupEntitlement(clients *client.AggregatedClient, groupEntitlement *mem
 	groupEntitlementsPostResponse, err := clients.MemberEntitleManagementClient.AddGroupEntitlement(clients.Ctx, memberentitlementmanagement.AddGroupEntitlementArgs{
 		GroupEntitlement: groupEntitlement,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -330,7 +329,7 @@ func addGroupEntitlement(clients *client.AggregatedClient, groupEntitlement *mem
 		if result[0].Errors != nil {
 			opResults = append(opResults, result[0])
 		}
-		return nil, fmt.Errorf(" Adding group entitlement: %s", getGroupEntitlementAPIErrorMessage(&opResults))
+		return nil, fmt.Errorf("Adding group entitlement: %s", getGroupEntitlementAPIErrorMessage(&opResults))
 	}
 
 	return result[0].Result, nil

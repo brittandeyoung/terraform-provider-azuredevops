@@ -1,14 +1,10 @@
-//go:build (all || resource_serviceendpoint_bitbucket) && !exclude_serviceendpoints
-// +build all resource_serviceendpoint_bitbucket
-// +build !exclude_serviceendpoints
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -128,10 +124,10 @@ func TestAccServiceEndpointBitBucket_RequiresImportErrorStep(t *testing.T) {
 func hclSvcEndpointBitBucketResourceBasic(projectName string, serviceEndpointName string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_bitbucket" "test" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%s"
-	username			   = "username"
-	password			   = "password"
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%s"
+  username              = "username"
+  password              = "password"
 }`, serviceEndpointName)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -141,11 +137,11 @@ resource "azuredevops_serviceendpoint_bitbucket" "test" {
 func hclSvcEndpointBitBucketResourceComplete(projectName string, serviceEndpointName string, description string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_bitbucket" "test" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%s"
-	description            = "%s"
-	username			   = "username"
-	password			   = "password"
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%s"
+  description           = "%s"
+  username              = "username"
+  password              = "password"
 }`, serviceEndpointName, description)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -155,11 +151,11 @@ resource "azuredevops_serviceendpoint_bitbucket" "test" {
 func hclSvcEndpointBitBucketResourceUpdate(projectName string, serviceEndpointName string, description string) string {
 	serviceEndpointResource := fmt.Sprintf(`
 resource "azuredevops_serviceendpoint_bitbucket" "test" {
-	project_id             = azuredevops_project.project.id
-	service_endpoint_name  = "%s"
-	description            = "%s"
-	username			   = "username"
-	password			   = "password"
+  project_id            = azuredevops_project.project.id
+  service_endpoint_name = "%s"
+  description           = "%s"
+  username              = "username"
+  password              = "password"
 }`, serviceEndpointName, description)
 
 	projectResource := testutils.HclProjectResource(projectName)
@@ -171,11 +167,11 @@ func hclSvcEndpointBitBucketResourceRequiresImport(projectName string, serviceEn
 	return fmt.Sprintf(`
 %s
 resource "azuredevops_serviceendpoint_bitbucket" "import" {
-  project_id                = azuredevops_serviceendpoint_bitbucket.test.project_id
+  project_id            = azuredevops_serviceendpoint_bitbucket.test.project_id
   service_endpoint_name = azuredevops_serviceendpoint_bitbucket.test.service_endpoint_name
-  description            = azuredevops_serviceendpoint_bitbucket.test.description
-  username          = azuredevops_serviceendpoint_bitbucket.test.username
-  password          = "password"
+  description           = azuredevops_serviceendpoint_bitbucket.test.description
+  username              = azuredevops_serviceendpoint_bitbucket.test.username
+  password              = "password"
 }
 `, template)
 }

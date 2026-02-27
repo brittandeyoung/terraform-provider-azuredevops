@@ -1,14 +1,10 @@
-//go:build (all || resource_policy_file_size) && !resource_policy_file_size
-// +build all resource_policy_file_size
-// +build !resource_policy_file_size
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 

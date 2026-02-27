@@ -145,6 +145,10 @@ func DataBuildDefinition() *schema.Resource {
 							Type:     schema.TypeString,
 							Computed: true,
 						},
+						"url": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
 						"report_build_status": {
 							Type:     schema.TypeBool,
 							Computed: true,
@@ -240,6 +244,105 @@ func DataBuildDefinition() *schema.Resource {
 					},
 				},
 			},
+			"agent_specification": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			"job_authorization_scope": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			"jobs": {
+				Type:     schema.TypeList,
+				Computed: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"name": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"ref_name": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"condition": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"dependencies": {
+							Type:     schema.TypeList,
+							Computed: true,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"scope": {
+										Type:     schema.TypeString,
+										Computed: true,
+									},
+								},
+							},
+						},
+						"target": {
+							Type:     schema.TypeList,
+							Computed: true,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"type": {
+										Type:     schema.TypeString,
+										Computed: true,
+									},
+									"execution_options": {
+										Type:     schema.TypeList,
+										Computed: true,
+										Elem: &schema.Resource{
+											Schema: map[string]*schema.Schema{
+												"type": {
+													Type:     schema.TypeString,
+													Computed: true,
+												},
+												"max_concurrency": {
+													Type:     schema.TypeInt,
+													Computed: true,
+												},
+												"multipliers": {
+													Type:     schema.TypeString,
+													Computed: true,
+												},
+												"continue_on_error": {
+													Type:     schema.TypeBool,
+													Computed: true,
+												},
+											},
+										},
+									},
+									"demands": {
+										Type:     schema.TypeList,
+										Computed: true,
+										Elem: &schema.Schema{
+											Type: schema.TypeString,
+										},
+									},
+								},
+							},
+						},
+						"job_timeout_in_minutes": {
+							Type:     schema.TypeInt,
+							Computed: true,
+						},
+						"job_cancel_timeout_in_minutes": {
+							Type:     schema.TypeInt,
+							Computed: true,
+						},
+						"job_authorization_scope": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"allow_scripts_auth_access_option": {
+							Type:     schema.TypeBool,
+							Computed: true,
+						},
+					},
+				},
+			},
 			"schedules": {
 				Type:     schema.TypeList,
 				Computed: true,
@@ -297,7 +400,7 @@ func dataSourceGitRepositoryRead(d *schema.ResourceData, m interface{}) error {
 		if utils.ResponseWasNotFound(err) {
 			return fmt.Errorf("Build Definition with name %s does not exist in project %s in %s path", name, projectID, path)
 		}
-		return fmt.Errorf("Error finding build definitions. Error: %v", err)
+		return fmt.Errorf("Finding build definitions. Error: %v", err)
 	}
 	if buildDefinitions == nil || 0 >= len(*buildDefinitions) {
 		return fmt.Errorf("Build Definition with name %s does not exist in project %s in %s path", name, projectID, path)
@@ -309,8 +412,7 @@ func dataSourceGitRepositoryRead(d *schema.ResourceData, m interface{}) error {
 	buildDetail := &(*buildDefinitions)[0]
 	d.SetId(strconv.Itoa(*buildDetail.Id))
 
-	flattenBuildDefinition(d, buildDetail, projectID)
-	return nil
+	return flattenBuildDefinition(d, buildDetail, projectID)
 }
 
 func getBuildDefinitionsByNameAndProject(clients *client.AggregatedClient, name string, path string, projectID string) (*[]build.BuildDefinition, error) {
@@ -327,7 +429,7 @@ func getBuildDefinitionsByNameAndProject(clients *client.AggregatedClient, name 
 	if err != nil {
 		return nil, err
 	}
-	var buildDefinitions []build.BuildDefinition
+	buildDefinitions := make([]build.BuildDefinition, 0, len(builds.Value))
 	for _, buildDefinition := range builds.Value {
 		buildDetails, err := clients.BuildClient.GetDefinition(clients.Ctx, build.GetDefinitionArgs{
 			Project:      &projectID,

@@ -54,11 +54,11 @@ resource "azuredevops_variable_group_permissions" "permissions" {
 
 The Azure DevOps UI uses roles to assign permissions for variable groups.
 
-| Role          | Allow Permissions      |
-| ------------- | ---------------------- |
-| Reader        | View                   |
-| User          | View, Use              |
-| Administrator | View, Use, Administer  |
+| Role          | Allow Permissions     |
+|---------------|-----------------------|
+| Reader        | View                  |
+| User          | View, Use             |
+| Administrator | View, Use, Administer |
 
 
 ## Argument Reference
@@ -66,23 +66,38 @@ The Azure DevOps UI uses roles to assign permissions for variable groups.
 The following arguments are supported:
 
 * `project_id` - (Required) The ID of the project.
-* `principal` - (Required) The **group** principal to assign the permissions.
-* `permissions` - (Required) the permissions to assign. The following permissions are available.
-* `variable_group_id` - (Required) The id of the variable group to assign the permissions.
-* `replace` - (Optional) Replace (`true`) or merge (`false`) the permissions. Default: `true`
 
-| Permission        | Description                         |
-| ----------------- | ----------------------------------- |
-| View              | View library item                   |
-| Administer        | Administer library item             |
-| Create            | Create library item                 |
-| ViewSecrets       | View library item secrets           |
-| Use               | Use library item                    |
-| Owner             | Owner library item                  |
+* `principal` - (Required) The **group** principal to assign the permissions.
+
+* `permissions` - (Required) the permissions to assign. The following permissions are available.
+
+  | Permission  | Description               |
+  |-------------|---------------------------|
+  | View        | View library item         |
+  | Administer  | Administer library item   |
+  | Create      | Create library item       |
+  | ViewSecrets | View library item secrets |
+  | Use         | Use library item          |
+  | Owner       | Owner library item        |
+
+* `variable_group_id` - (Required) The id of the variable group to assign the permissions.
+
+---
+
+* `replace` - (Optional) Replace (`true`) or merge (`false`) the permissions. Default: `true`
 
 ## Relevant Links
 
-* [Azure DevOps Service REST API 6.0 - Security](https://docs.microsoft.com/en-us/rest/api/azure/devops/security/?view=azure-devops-rest-6.0)
+* [Azure DevOps Service REST API 7.1 - Security](https://docs.microsoft.com/en-us/rest/api/azure/devops/security/?view=azure-devops-rest-7.1)
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 10 minutes) Used when creating the Variable Group Permissions.
+* `read` - (Defaults to 5 minute) Used when retrieving the Variable Group Permissions.
+* `update` - (Defaults to 10 minutes) Used when updating the Variable Group Permissions.
+* `delete` - (Defaults to 10 minutes) Used when deleting the Variable Group Permissions.
 
 ## Import
 

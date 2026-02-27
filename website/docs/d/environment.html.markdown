@@ -21,13 +21,13 @@ resource "azuredevops_project" "example" {
 }
 
 resource "azuredevops_environment" "example" {
-  project_id = azuredevops_project.example.id
-  name       = "Example Environment"
+  project_id  = azuredevops_project.example.id
+  name        = "Example Environment"
   description = "Managed by Terraform"
 }
 
 data "azuredevops_environment" "example" {
-  project_id= azuredevops_project.example.id
+  project_id     = azuredevops_project.example.id
   environment_id = azuredevops_environment.example.id
 }
 ```
@@ -37,6 +37,8 @@ data "azuredevops_environment" "example" {
 The following arguments are supported:
 
 * `project_id` - (Required) The ID of the project.
+
+---
 
 * `environment_id` - (Optional) The ID of the Environment.
 
@@ -55,3 +57,9 @@ In addition to the Arguments list above - the following Attributes are exported:
 ## Relevant Links
 
 * [Azure DevOps Service REST API 7.0 - Environments](https://docs.microsoft.com/en-us/rest/api/azure/devops/distributedtask/environments?view=azure-devops-rest-7.0)
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `read` - (Defaults to 5 minute) Used when retrieving the Environment.

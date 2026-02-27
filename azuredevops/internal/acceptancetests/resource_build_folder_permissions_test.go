@@ -1,14 +1,10 @@
-//go:build (all || permissions || resource_build_Folder_permissions) && (!exclude_permissions || !exclude_resource_build_Folder_permissions)
-// +build all permissions resource_build_Folder_permissions
-// +build !exclude_permissions !exclude_resource_build_Folder_permissions
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/datahelper"
 )

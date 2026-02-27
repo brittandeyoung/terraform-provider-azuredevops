@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
@@ -22,7 +22,7 @@ import (
 )
 
 // timeout used to wait for operations on projects to finish before executing an update or delete
-var projectBusyTimeoutDuration time.Duration = 6
+var projectBusyTimeoutDuration time.Duration = 6 * time.Minute
 
 // ResourceProject schema and implementation for project resource
 func ResourceProject() *schema.Resource {
@@ -100,16 +100,16 @@ func resourceProjectCreate(ctx context.Context, d *schema.ResourceData, m interf
 	clients := m.(*client.AggregatedClient)
 	project, err := expandProject(clients, d, true)
 	if err != nil {
-		return diag.FromErr(fmt.Errorf(" expand project reference: %+v", err))
+		return diag.FromErr(fmt.Errorf("expand project reference: %+v", err))
 	}
 
 	operationRef, err := clients.CoreClient.QueueCreateProject(clients.Ctx, core.QueueCreateProjectArgs{ProjectToCreate: project})
 	if err != nil {
-		return diag.FromErr(fmt.Errorf(" creating project: %v", err))
+		return diag.FromErr(fmt.Errorf("creating project: %v", err))
 	}
 
 	// waiting creation operation finished or timeout
-	stateConf := &resource.StateChangeConf{
+	stateConf := &retry.StateChangeConf{
 		ContinuousTargetOccurence: 1,
 		Delay:                     5 * time.Second,
 		MinTimeout:                10 * time.Second,
@@ -122,17 +122,18 @@ func resourceProjectCreate(ctx context.Context, d *schema.ResourceData, m interf
 		Target: []string{
 			string(operations.OperationStatusValues.Failed),
 			string(operations.OperationStatusValues.Succeeded),
-			string(operations.OperationStatusValues.Cancelled)},
+			string(operations.OperationStatusValues.Cancelled),
+		},
 		Refresh: pollOperationResult(clients, operationRef),
 	}
 
 	if _, err := stateConf.WaitForStateContext(clients.Ctx); err != nil {
-		return diag.FromErr(fmt.Errorf(" waiting for project create finished. %v ", err))
+		return diag.FromErr(fmt.Errorf("waiting for project create finished. %v ", err))
 	}
 
 	project, err = getProject(clients, "", *project.Name, d.Timeout(schema.TimeoutCreate))
 	if err != nil {
-		return diag.FromErr(fmt.Errorf(" waiting for project ready. %v ", err))
+		return diag.FromErr(fmt.Errorf("waiting for project ready. %v ", err))
 	}
 
 	featureStates, ok := d.GetOk("features")
@@ -161,12 +162,14 @@ func resourceProjectRead(ctx context.Context, d *schema.ResourceData, m interfac
 			d.SetId("")
 			return nil
 		}
-		return diag.FromErr(fmt.Errorf(" looking up project with (ID: %s or Name: %s). Error: %+v", projectID, name, err))
+		return diag.FromErr(fmt.Errorf("looking up project with (ID: %s or Name: %s). Error: %+v", projectID, name, err))
 	}
 
+	// Set ID to the project UUID in case the project is imported by name
+	d.SetId(project.Id.String())
 	err = flattenProject(clients, d, project)
 	if err != nil {
-		return diag.FromErr(fmt.Errorf(" flattening project: %v", err))
+		return diag.FromErr(fmt.Errorf("flattening project: %v", err))
 	}
 	return nil
 }
@@ -175,43 +178,40 @@ func resourceProjectUpdate(ctx context.Context, d *schema.ResourceData, m interf
 	clients := m.(*client.AggregatedClient)
 	project, err := expandProject(clients, d, false)
 	if err != nil {
-		return diag.FromErr(fmt.Errorf(" converting terraform data model to AzDO project reference: %+v", err))
+		return diag.FromErr(fmt.Errorf("converting terraform data model to AzDO project reference: %+v", err))
 	}
-	//
-	//requiresUpdate := false
-	//if !d.HasChange("name") {
-	//	project.Name = nil
-	//} else {
-	//	requiresUpdate = true
-	//}
-	//if !d.HasChange("description") {
-	//	project.Description = nil
-	//} else {
-	//	requiresUpdate = true
-	//}
-	//if !d.HasChange("visibility") {
-	//	project.Visibility = nil
-	//} else {
-	//	requiresUpdate = true
-	//}
 
-	//if requiresUpdate {
-	if err = updateProject(clients, project, d.Timeout(schema.TimeoutUpdate)); err != nil {
-		return diag.FromErr(fmt.Errorf(" updating project: %v", err))
+	requiresUpdate := false
+	if !d.HasChange("name") {
+		project.Name = nil
+	} else {
+		requiresUpdate = true
 	}
-	//}
+	if !d.HasChange("description") {
+		project.Description = nil
+	} else {
+		requiresUpdate = true
+	}
+	if !d.HasChange("visibility") {
+		project.Visibility = nil
+	} else {
+		requiresUpdate = true
+	}
+
+	if requiresUpdate {
+		if err = updateProject(clients, project, d.Timeout(schema.TimeoutUpdate)); err != nil {
+			return diag.FromErr(fmt.Errorf("updating project: %v", err))
+		}
+	}
 
 	if d.HasChange("features") {
 		var featureStates map[string]interface{}
 		oldFeatureStates, newFeatureStates := d.GetChange("features")
-		if len(newFeatureStates.(map[string]interface{})) <= 0 {
+		if len(newFeatureStates.(map[string]interface{})) == 0 {
 			log.Printf("[TRACE] resourceProjectUpdate: new feature definition is empty; resetting to defaults")
 
 			featureStates = oldFeatureStates.(map[string]interface{})
-			pfeatureStates, err := getDefaultProjectFeatureStates(&featureStates)
-			if err != nil {
-				return nil
-			}
+			pfeatureStates := getDefaultProjectFeatureStates(&featureStates)
 			featureStates = *pfeatureStates
 		} else {
 			featureStates = newFeatureStates.(map[string]interface{})
@@ -232,7 +232,7 @@ func resourceProjectDelete(ctx context.Context, d *schema.ResourceData, m interf
 
 	err := deleteProject(clients, id, d.Timeout(schema.TimeoutDelete))
 	if err != nil {
-		return diag.FromErr(fmt.Errorf(" deleting project: %v", err))
+		return diag.FromErr(fmt.Errorf("deleting project: %v", err))
 	}
 
 	return nil
@@ -254,7 +254,7 @@ func updateProjectFeatures(clients *client.AggregatedClient, project *core.TeamP
 	return nil
 }
 
-func pollOperationResult(clients *client.AggregatedClient, operationRef *operations.OperationReference) resource.StateRefreshFunc {
+func pollOperationResult(clients *client.AggregatedClient, operationRef *operations.OperationReference) retry.StateRefreshFunc {
 	return func() (interface{}, string, error) {
 		ret, err := clients.OperationsClient.GetOperation(clients.Ctx, operations.GetOperationArgs{
 			OperationId: operationRef.Id,
@@ -279,7 +279,7 @@ func getProject(clients *client.AggregatedClient, projectID string, projectName 
 	}
 
 	var project *core.TeamProject
-	stateConf := &resource.StateChangeConf{
+	stateConf := &retry.StateChangeConf{
 		ContinuousTargetOccurence: 1,
 		Delay:                     5 * time.Second,
 		MinTimeout:                20 * time.Second,
@@ -306,7 +306,7 @@ func getProject(clients *client.AggregatedClient, projectID string, projectName 
 		if utils.ResponseWasNotFound(err) {
 			return nil, err
 		}
-		return nil, fmt.Errorf(" Project not found. (ID: %s or name: %s), Error: %+v", projectID, projectName, err)
+		return nil, fmt.Errorf("Project not found. (ID: %s or name: %s), Error: %+v", projectID, projectName, err)
 	}
 
 	return project, nil
@@ -317,7 +317,7 @@ func updateProject(clients *client.AggregatedClient, project *core.TeamProject, 
 
 	// project updates may fail if there is activity going on in the project. A retry can be employed
 	// to gracefully handle errors encountered for updates, up until a timeout is reached
-	err := resource.RetryContext(clients.Ctx, projectBusyTimeoutDuration*time.Minute, func() *resource.RetryError {
+	err := retry.RetryContext(clients.Ctx, projectBusyTimeoutDuration, func() *retry.RetryError {
 		var updateErr error
 		operationRef, updateErr = clients.CoreClient.UpdateProject(
 			clients.Ctx,
@@ -326,16 +326,15 @@ func updateProject(clients *client.AggregatedClient, project *core.TeamProject, 
 				ProjectId:     project.Id,
 			})
 		if updateErr != nil {
-			return resource.RetryableError(updateErr)
+			return retry.RetryableError(updateErr)
 		}
 		return nil
 	})
-
 	if err != nil {
 		return err
 	}
 
-	stateConf := &resource.StateChangeConf{
+	stateConf := &retry.StateChangeConf{
 		ContinuousTargetOccurence: 1,
 		Delay:                     10 * time.Second,
 		MinTimeout:                10 * time.Second,
@@ -348,12 +347,13 @@ func updateProject(clients *client.AggregatedClient, project *core.TeamProject, 
 		Target: []string{
 			string(operations.OperationStatusValues.Failed),
 			string(operations.OperationStatusValues.Succeeded),
-			string(operations.OperationStatusValues.Cancelled)},
+			string(operations.OperationStatusValues.Cancelled),
+		},
 		Refresh: pollOperationResult(clients, operationRef),
 	}
 
 	if _, err := stateConf.WaitForStateContext(clients.Ctx); err != nil {
-		return fmt.Errorf(" waiting for project ready. %v ", err)
+		return fmt.Errorf("waiting for project ready. %v ", err)
 	}
 	return nil
 }
@@ -361,30 +361,29 @@ func updateProject(clients *client.AggregatedClient, project *core.TeamProject, 
 func deleteProject(clients *client.AggregatedClient, id string, timeout time.Duration) error {
 	uuid, err := uuid.Parse(id)
 	if err != nil {
-		return fmt.Errorf(" Invalid project UUID: %s", id)
+		return fmt.Errorf("Invalid project UUID: %s", id)
 	}
 
 	var operationRef *operations.OperationReference
 
 	// project deletes may fail if there is activity going on in the project. A retry can be employed
 	// to gracefully handle errors encountered for deletes, up until a timeout is reached
-	err = resource.RetryContext(clients.Ctx, projectBusyTimeoutDuration*time.Minute, func() *resource.RetryError {
+	err = retry.RetryContext(clients.Ctx, projectBusyTimeoutDuration, func() *retry.RetryError {
 		var deleteErr error
 		operationRef, deleteErr = clients.CoreClient.QueueDeleteProject(clients.Ctx, core.QueueDeleteProjectArgs{
 			ProjectId: &uuid,
 		})
 
 		if deleteErr != nil {
-			return resource.RetryableError(deleteErr)
+			return retry.RetryableError(deleteErr)
 		}
 		return nil
 	})
-
 	if err != nil {
 		return err
 	}
 
-	stateConf := &resource.StateChangeConf{
+	stateConf := &retry.StateChangeConf{
 		ContinuousTargetOccurence: 1,
 		Delay:                     10 * time.Second,
 		MinTimeout:                10 * time.Second,
@@ -397,12 +396,13 @@ func deleteProject(clients *client.AggregatedClient, id string, timeout time.Dur
 		Target: []string{
 			string(operations.OperationStatusValues.Failed),
 			string(operations.OperationStatusValues.Succeeded),
-			string(operations.OperationStatusValues.Cancelled)},
+			string(operations.OperationStatusValues.Cancelled),
+		},
 		Refresh: pollOperationResult(clients, operationRef),
 	}
 
 	if _, err := stateConf.WaitForStateContext(clients.Ctx); err != nil {
-		return fmt.Errorf(" waiting for project ready. %v ", err)
+		return fmt.Errorf("waiting for project ready. %v ", err)
 	}
 	return nil
 }
@@ -459,7 +459,7 @@ func expandProject(clients *client.AggregatedClient, d *schema.ResourceData, for
 
 func flattenProject(clients *client.AggregatedClient, d *schema.ResourceData, project *core.TeamProject) error {
 	var err error
-	processTemplateName := ""
+	var processTemplateName string
 	processTemplateID := (*project.Capabilities)["processTemplate"]["templateTypeId"]
 	if len(processTemplateID) > 0 {
 		processTemplateName, err = lookupProcessTemplateName(clients, processTemplateID)
@@ -479,7 +479,7 @@ func flattenProject(clients *client.AggregatedClient, d *schema.ResourceData, pr
 		featureStates := features.(map[string]interface{})
 		states, err := getConfiguredProjectFeatureStates(clients.Ctx, clients.FeatureManagementClient, &featureStates, project.Id.String())
 		if err != nil {
-			return nil
+			return err
 		}
 		currentFeatureStates = states
 	}
@@ -552,7 +552,6 @@ func lookupProcessTemplateName(clients *client.AggregatedClient, templateID stri
 	process, err := clients.CoreClient.GetProcessById(clients.Ctx, core.GetProcessByIdArgs{
 		ProcessId: &id,
 	})
-
 	if err != nil {
 		return "", fmt.Errorf("Error looking up template by ID: %v", err)
 	}

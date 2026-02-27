@@ -11,31 +11,34 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/terraform-provider-azuredevops/azdosdkmocks"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/pipelineschecksextras"
+	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/sdk/pipelineschecksextras"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var branchControlCheckID = 123456789
-var branchControlEndpointID = uuid.New().String()
-var branchControlCheckProjectID = uuid.New().String()
-var branchControlCheckTestProjectID = &branchControlCheckProjectID
+var (
+	branchControlCheckID        = 123456789
+	branchControlEndpointID     = uuid.New().String()
+	branchControlCheckProjectID = uuid.New().String()
+)
 
-var endpointType = "endpoint"
-var endpointResource = pipelineschecksextras.Resource{
-	Id:   &branchControlEndpointID,
-	Type: &endpointType,
-}
+var (
+	endpointType     = "endpoint"
+	endpointResource = pipelineschecksextras.Resource{
+		Id:   &branchControlEndpointID,
+		Type: &endpointType,
+	}
+)
 
 var branchControlInputs = map[string]interface{}{
 	"allowedBranches":          "refs/heads/releases/*",
-	"ensureProtectionOfBranch": strconv.FormatBool(false),
-	"allowUnknownStatusBranch": strconv.FormatBool(true),
+	"ensureProtectionOfBranch": strconv.FormatBool(true),
+	"allowUnknownStatusBranch": strconv.FormatBool(false),
 }
 
 var branchControlCheckSettings = map[string]interface{}{

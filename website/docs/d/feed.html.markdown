@@ -35,21 +35,32 @@ data "azuredevops_feed" "example" {
 
 The following arguments are supported:
 
-- `name` - (Required) Name of the Feed.
-- `feed_id` - (Required) ID of the Feed.
+* `name` - (Required) The Name of the Feed.
+
+* `feed_id` - (Required) The ID of the Feed.
 
 ~> **Note** Only one of `name` or `feed_id` can be set at the same time.
 
-- `project_id` - (Optional) ID of the Project Feed is created in.
+---
+
+* `project_id` - (Optional) ID of the Project Feed is created in.
 
 ## Attributes Reference
 
 The following attributes are exported:
 
-- `name` - The name of the Feed.
-- `feed_id` - The ID of the Feed.
-- `project_id` - The ID of the Project.
+* `name` - The name of the Feed.
+
+* `feed_id` - The ID of the Feed.
+
+* `project_id` - The ID of the Project.
 
 ## Relevant Links
 
 - [Azure DevOps Service REST API 7.0 - Feed - Get](https://learn.microsoft.com/en-us/rest/api/azure/devops/artifacts/feed-management/get-feed?view=azure-devops-rest-7.0)
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `read` - (Defaults to 5 minute) Used when retrieving the Feed.

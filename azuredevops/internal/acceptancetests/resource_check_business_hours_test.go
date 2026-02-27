@@ -1,14 +1,10 @@
-//go:build (all || resource_check_business_hours) && !exclude_approvalsandchecks
-// +build all resource_check_business_hours
-// +build !exclude_approvalsandchecks
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -175,7 +171,8 @@ resource "azuredevops_check_business_hours" "test" {
 }
 
 func hclCheckBusinessHoursResourceComplete(projectName string, checkName string, start_time string, end_time string, time_zone string,
-	monday string, tuesday string, wednesday string, thursday string, friday string, saturday string, sunday string) string {
+	monday string, tuesday string, wednesday string, thursday string, friday string, saturday string, sunday string,
+) string {
 	checkResource := fmt.Sprintf(`
 resource "azuredevops_check_business_hours" "test" {
   project_id           = azuredevops_project.project.id
@@ -200,7 +197,8 @@ resource "azuredevops_check_business_hours" "test" {
 }
 
 func hclCheckBusinessHoursResourceUpdate(projectName string, checkName string, start_time string, end_time string, time_zone string,
-	monday string, tuesday string, wednesday string, thursday string, friday string, saturday string, sunday string) string {
+	monday string, tuesday string, wednesday string, thursday string, friday string, saturday string, sunday string,
+) string {
 	checkResource := fmt.Sprintf(`
 resource "azuredevops_check_business_hours" "test" {
   project_id           = azuredevops_project.project.id

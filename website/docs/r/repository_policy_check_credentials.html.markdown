@@ -58,20 +58,34 @@ resource "azuredevops_repository_policy_check_credentials" "example" {
 
 The following arguments are supported:
 
-- `project_id` - (Required) The ID of the project in which the policy will be created.
-- `enabled` - (Optional) A flag indicating if the policy should be enabled. Defaults to `true`. 
-- `blocking` - (Optional) A flag indicating if the policy should be blocking. Defaults to `true`.
-- `repository_ids` (Optional) Control whether the policy is enabled for the repository or the project. If `repository_ids` not configured, the policy will be set to the project.
+* `project_id` - (Required) The ID of the project in which the policy will be created.
+
+---
+
+* `blocking` - (Optional) A flag indicating if the policy should be blocking. Defaults to `true`.
+
+* `enabled` - (Optional) A flag indicating if the policy should be enabled. Defaults to `true`.
+
+* `repository_ids` (Optional) Control whether the policy is enabled for the repository or the project. If `repository_ids` not configured, the policy will be set to the project.
 
 ## Attributes Reference
 
 In addition to all arguments above, the following attributes are exported:
 
-- `id` - The ID of the repository policy.
+* `id` - The ID of the repository policy.
 
 ## Relevant Links
 
 - [Azure DevOps Service REST API 7.0 - Policy Configurations](https://docs.microsoft.com/en-us/rest/api/azure/devops/policy/configurations?view=azure-devops-rest-7.0)
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 10 minutes) Used when creating the Check Credentials Repository Policy.
+* `read` - (Defaults to 5 minute) Used when retrieving the Check Credentials Repository Policy.
+* `update` - (Defaults to 10 minutes) Used when updating the Check Credentials Repository Policy.
+* `delete` - (Defaults to 10 minutes) Used when deleting the Check Credentials Repository Policy.
 
 ## Import
 

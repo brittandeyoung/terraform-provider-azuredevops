@@ -1,13 +1,9 @@
-//go:build (all || core || data_sources || data_securityrole_definitions) && (!data_sources || !exclude_data_securityrole_definitions)
-// +build all core data_sources data_securityrole_definitions
-// +build !data_sources !exclude_data_securityrole_definitions
-
 package acceptancetests
 
 import (
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 

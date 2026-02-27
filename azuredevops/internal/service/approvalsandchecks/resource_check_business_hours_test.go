@@ -10,19 +10,21 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/terraform-provider-azuredevops/azdosdkmocks"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/pipelineschecksextras"
+	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/sdk/pipelineschecksextras"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var CheckBusinessHoursID = 123456789
-var CheckBusinessHoursProjectID = uuid.New().String()
-var CheckBusinessHoursTestProjectID = &CheckBusinessHoursProjectID
+var (
+	CheckBusinessHoursID            = 123456789
+	CheckBusinessHoursProjectID     = uuid.New().String()
+	CheckBusinessHoursTestProjectID = &CheckBusinessHoursProjectID
+)
 
 var CheckBusinessHoursInputs = map[string]interface{}{
 	"businessDays": "Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday",

@@ -1,14 +1,10 @@
-//go:build (all || permissions || resource_tagging_permissions) && (!exclude_permissions || !exclude_resource_tagging_permissions)
-// +build all permissions resource_tagging_permissions
-// +build !exclude_permissions !exclude_resource_tagging_permissions
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/datahelper"
 )
@@ -115,16 +111,16 @@ func hclTaggingPermissions(projectName string, permissions map[string]map[string
 %s
 
 data "azuredevops_group" "tf-project-readers" {
-	project_id = azuredevops_project.project.id
-	name       = "Readers"
+  project_id = azuredevops_project.project.id
+  name       = "Readers"
 }
 
 resource "azuredevops_tagging_permissions" "acctest" {
-	project_id  = azuredevops_project.project.id
-	principal   = data.azuredevops_group.tf-project-readers.id
-	permissions = {
+  project_id = azuredevops_project.project.id
+  principal  = data.azuredevops_group.tf-project-readers.id
+  permissions = {
 		%s
-	}
+  }
 }
 `, testutils.HclProjectResource(projectName), rootPermissions)
 }

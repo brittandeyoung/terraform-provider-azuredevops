@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
@@ -17,11 +16,14 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var ghTestServiceEndpointID = uuid.New()
-var ghRandomServiceEndpointProjectID = uuid.New()
-var ghTestServiceEndpointProjectID = &ghRandomServiceEndpointProjectID
+var (
+	ghTestServiceEndpointID          = uuid.New()
+	ghRandomServiceEndpointProjectID = uuid.New()
+	ghTestServiceEndpointProjectID   = &ghRandomServiceEndpointProjectID
+)
 
 var ghTestServiceEndpoint = serviceendpoint.ServiceEndpoint{
 	Authorization: &serviceendpoint.EndpointAuthorization{
@@ -50,14 +52,15 @@ var ghTestServiceEndpoint = serviceendpoint.ServiceEndpoint{
 // verifies that the flatten/expand round trip yields the same service endpoint
 func TestServiceEndpointGitHub_ExpandFlatten_Roundtrip(t *testing.T) {
 	resourceData := schema.TestResourceDataRaw(t, ResourceServiceEndpointGitHub().Schema, nil)
+	resourceData.Set("project_id", (*ghTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
 	configureAuthPersonal(resourceData)
-	flattenServiceEndpointGitHub(resourceData, &ghTestServiceEndpoint, ghTestServiceEndpointProjectID.String())
+	flattenServiceEndpointGitHub(resourceData, &ghTestServiceEndpoint)
 
-	serviceEndpointAfterRoundTrip, projectID, err := expandServiceEndpointGitHub(resourceData)
+	serviceEndpointAfterRoundTrip, err := expandServiceEndpointGitHub(resourceData)
 
 	require.Nil(t, err)
 	require.Equal(t, ghTestServiceEndpoint, *serviceEndpointAfterRoundTrip)
-	require.Equal(t, ghTestServiceEndpointProjectID, projectID)
+	require.Equal(t, ghTestServiceEndpointProjectID, (*serviceEndpointAfterRoundTrip.ServiceEndpointProjectReferences)[0].ProjectReference.Id)
 }
 
 // verifies that if an error is produced on create, the error is not swallowed
@@ -67,8 +70,9 @@ func TestServiceEndpointGitHub_Create_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointGitHub()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
+	resourceData.Set("project_id", (*ghTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
 	configureAuthPersonal(resourceData)
-	flattenServiceEndpointGitHub(resourceData, &ghTestServiceEndpoint, ghTestServiceEndpointProjectID.String())
+	flattenServiceEndpointGitHub(resourceData, &ghTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -91,7 +95,8 @@ func TestServiceEndpointGitHub_Read_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointGitHub()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointGitHub(resourceData, &ghTestServiceEndpoint, ghTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*ghTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointGitHub(resourceData, &ghTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -117,7 +122,8 @@ func TestServiceEndpointGitHub_Delete_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointGitHub()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointGitHub(resourceData, &ghTestServiceEndpoint, ghTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*ghTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointGitHub(resourceData, &ghTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -145,8 +151,9 @@ func TestServiceEndpointGitHub_Update_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointGitHub()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
+	resourceData.Set("project_id", (*ghTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
 	configureAuthPersonal(resourceData)
-	flattenServiceEndpointGitHub(resourceData, &ghTestServiceEndpoint, ghTestServiceEndpointProjectID.String())
+	flattenServiceEndpointGitHub(resourceData, &ghTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}

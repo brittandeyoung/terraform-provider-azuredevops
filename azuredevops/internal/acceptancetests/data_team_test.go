@@ -1,14 +1,10 @@
-//go:build (all || core || data_sources || data_team) && (!exclude_data_sources || !exclude_data_team)
-// +build all core data_sources data_team
-// +build !exclude_data_sources !exclude_data_team
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -29,7 +25,6 @@ func TestAccTeam_DataSource_Basic(t *testing.T) {
 					resource.TestCheckResourceAttrSet(tfNode, "description"),
 					resource.TestCheckResourceAttrSet(tfNode, "administrators.#"),
 					resource.TestCheckResourceAttrSet(tfNode, "members.#"),
-					resource.TestCheckResourceAttrSet(tfNode, "descriptor"),
 				),
 			},
 		},
@@ -39,7 +34,7 @@ func TestAccTeam_DataSource_Basic(t *testing.T) {
 func hclTeamDataSourceBasic(name string) string {
 	return fmt.Sprintf(`
 resource "azuredevops_project" "test" {
-  name               = "%[1]s"
+  name               = "AccTest %[1]s"
   description        = "description"
   visibility         = "private"
   version_control    = "Git"

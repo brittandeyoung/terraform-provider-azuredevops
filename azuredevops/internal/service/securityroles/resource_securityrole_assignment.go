@@ -2,14 +2,16 @@ package securityroles
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/securityroles"
+	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/sdk/securityroles"
 )
 
 func ResourceSecurityRoleAssignment() *schema.Resource {
@@ -34,6 +36,7 @@ func ResourceSecurityRoleAssignment() *schema.Resource {
 				Type:         schema.TypeString,
 				ValidateFunc: validation.StringIsNotEmpty,
 				Required:     true,
+				ForceNew:     true,
 			},
 			"identity_id": {
 				Type:         schema.TypeString,
@@ -66,7 +69,20 @@ func resourceSecurityRoleAssignmentCreateOrUpdate(d *schema.ResourceData, m inte
 		IdentityId: &identityId,
 		RoleName:   &roleName,
 	})
+	if err != nil {
+		return err
+	}
 
+	stateConf := &retry.StateChangeConf{
+		ContinuousTargetOccurence: 2,
+		Delay:                     5 * time.Second,
+		MinTimeout:                10 * time.Second,
+		Timeout:                   d.Timeout(schema.TimeoutCreate),
+		Pending:                   []string{"syncing"},
+		Target:                    []string{"succeed", "failed"},
+		Refresh:                   getSecurityRoleAssignment(*clients, scope, roleName, resourceId, identityId),
+	}
+	_, err = stateConf.WaitForStateContext(clients.Ctx)
 	if err != nil {
 		return err
 	}
@@ -78,9 +94,7 @@ func resourceSecurityRoleAssignmentCreateOrUpdate(d *schema.ResourceData, m inte
 func resourceSecurityRoleAssignmentRead(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
 	scope := d.Get("scope").(string)
-
 	resourceId := d.Get("resource_id").(string)
-
 	identityId, err := uuid.Parse(d.Get("identity_id").(string))
 	if err != nil {
 		return err
@@ -96,7 +110,7 @@ func resourceSecurityRoleAssignmentRead(d *schema.ResourceData, m interface{}) e
 			d.SetId("")
 			return nil
 		}
-		return fmt.Errorf(" reading group memberships during read: %+v", err)
+		return fmt.Errorf("reading group memberships during read: %+v", err)
 	}
 
 	if assignment != nil && (assignment.Identity == nil && assignment.Role == nil) {
@@ -131,10 +145,40 @@ func resourceSecurityRoleAssignmentDelete(d *schema.ResourceData, m interface{})
 		ResourceId: &resourceId,
 		IdentityId: &identityId,
 	})
-
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func getSecurityRoleAssignment(clients client.AggregatedClient, scope, roleName, resourceId string, identityId uuid.UUID) retry.StateRefreshFunc {
+	return func() (interface{}, string, error) {
+		assigns, err := clients.SecurityRolesClient.GetSecurityRoleAssignment(clients.Ctx, &securityroles.GetSecurityRoleAssignmentArgs{
+			Scope:      &scope,
+			ResourceId: &resourceId,
+			IdentityId: &identityId,
+		})
+		if err != nil {
+			if utils.ResponseWasNotFound(err) {
+				return "", "syncing", nil
+			}
+			return "", "failed", nil
+		}
+
+		if assigns != nil && (assigns.Identity == nil && assigns.Role == nil) {
+			return "", "syncing", nil
+		}
+
+		if assigns != nil && assigns.Identity != nil && assigns.Identity.ID != nil &&
+			!strings.EqualFold(*assigns.Identity.ID, identityId.String()) {
+			return "", "syncing", nil
+		}
+
+		if assigns.Role != nil && assigns.Role.Name != nil &&
+			!strings.EqualFold(*assigns.Role.Name, roleName) && !strings.EqualFold(*assigns.Role.Scope, scope) {
+			return "", "syncing", nil
+		}
+		return "", "succeed", nil
+	}
 }

@@ -37,18 +37,20 @@ resource "azuredevops_group_membership" "example" {
 
 The following arguments are supported:
 
-- `group` - (Required) The descriptor of the group being managed.
-- `members` - (Required) A list of user or group descriptors that will become members of the group.
+* `group` - (Required) The descriptor of the group being managed.
 
-  ~> **NOTE** It's possible to define group members both within the `azuredevops_group_membership resource` via the members block and by using the `azuredevops_group` resource. However it's not possible to use both methods to manage group members, since there'll be conflicts.
+* `members` - (Required) A list of user or group descriptors that will become members of the group.
 
-  ~> **NOTE**  The `members` uses `descriptor` as the identifier not Resource ID or others.
+  ~> **NOTE** 1. It's possible to define group members both within the `azuredevops_group_membership resource` via the members block and by using the `azuredevops_group` resource. However it's not possible to use both methods to manage group members, since there'll be conflicts.
+  <br>2. The `members` uses `descriptor` as the identifier not Resource ID or others.
 
-- `mode` - (Optional) The mode how the resource manages group members.
-  - `mode == add`: the resource will ensure that all specified members will be part of the referenced group
-  - `mode == overwrite`: the resource will replace all existing members with the members specified within the `members` block
-  
-    ~> **NOTE** To clear all members from a group, specify an empty list of descriptors in the `members` attribute and set the `mode` member to `overwrite`.
+---
+
+* `mode` - (Optional) The mode how the resource manages group members.
+
+  ~>**NOTE** 1. `mode = add`: the resource will ensure that all specified members will be part of the referenced group
+  <br>2. `mode = overwrite`: the resource will replace all existing members with the members specified within the `members` block
+  <br>3. To clear all members from a group, specify an empty list of descriptors in the `members` attribute and set the `mode` member to `overwrite`.
 
 ## Attributes Reference
 
@@ -60,9 +62,14 @@ In addition to all arguments above, the following attributes are exported:
 
 - [Azure DevOps Service REST API 7.0 - Memberships](https://docs.microsoft.com/en-us/rest/api/azure/devops/graph/memberships?view=azure-devops-rest-7.0)
 
-## Import
+## Timeouts
 
-Not supported.
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 10 minutes) Used when creating the Group membership.
+* `read` - (Defaults to 5 minute) Used when retrieving the Group membership.
+* `update` - (Defaults to 10 minutes) Used when updating the Group membership.
+* `delete` - (Defaults to 10 minutes) Used when deleting the Group membership.
 
 ## PAT Permissions Required
 

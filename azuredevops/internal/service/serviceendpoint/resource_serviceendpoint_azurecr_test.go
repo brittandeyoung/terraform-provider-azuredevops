@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
@@ -18,22 +17,25 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var azureCRTestServiceEndpointID = uuid.New()
-var azureCRRandomServiceEndpointProjectID = uuid.New()
-var azureCRTestServiceEndpointProjectID = &azureCRRandomServiceEndpointProjectID
-var subscription_id = "42125daf-72fd-417c-9ea7-080690625ad3"
-var scope = fmt.Sprintf(
-	"/subscriptions/%s/resourceGroups/testrg/providers/Microsoft.ContainerRegistry/registries/testacr",
-	subscription_id,
+var (
+	azureCRTestServiceEndpointID          = uuid.New()
+	azureCRRandomServiceEndpointProjectID = uuid.New()
+	azureCRTestServiceEndpointProjectID   = &azureCRRandomServiceEndpointProjectID
+	subscription_id                       = "42125daf-72fd-417c-9ea7-080690625ad3"
+	scope                                 = fmt.Sprintf(
+		"/subscriptions/%s/resourceGroups/testrg/providers/Microsoft.ContainerRegistry/registries/testacr",
+		subscription_id,
+	)
 )
 
 var azureCRTestServiceEndpoint = serviceendpoint.ServiceEndpoint{
 	Authorization: &serviceendpoint.EndpointAuthorization{
 		Parameters: &map[string]string{
 			"authenticationType": "spnKey",
-			"tenantId":           "aba07645-051c-44b4-b806-c34d33f3dcd1", //fake value
+			"tenantId":           "aba07645-051c-44b4-b806-c34d33f3dcd1", // fake value
 			"loginServer":        "testacr.azurecr.io",
 			"scope":              scope,
 			"serviceprincipalid": "00000000-0000-0000-0000-000000000000",
@@ -70,12 +72,13 @@ var azureCRTestServiceEndpoint = serviceendpoint.ServiceEndpoint{
 // verifies that the flatten/expand round trip yields the same service endpoint
 func TestServiceEndpointAzureCR_ExpandFlatten_Roundtrip(t *testing.T) {
 	resourceData := schema.TestResourceDataRaw(t, ResourceServiceEndpointAzureCR().Schema, nil)
-	flattenServiceEndpointAzureCR(resourceData, &azureCRTestServiceEndpoint, azureCRTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*azureCRTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointAzureCR(resourceData, &azureCRTestServiceEndpoint)
 
-	serviceEndpointAfterRoundTrip, projectID, err := expandServiceEndpointAzureCR(resourceData)
+	serviceEndpointAfterRoundTrip, err := expandServiceEndpointAzureCR(resourceData)
 
 	require.Equal(t, azureCRTestServiceEndpoint, *serviceEndpointAfterRoundTrip)
-	require.Equal(t, azureCRTestServiceEndpointProjectID, projectID)
+	require.Equal(t, azureCRTestServiceEndpointProjectID, (*serviceEndpointAfterRoundTrip.ServiceEndpointProjectReferences)[0].ProjectReference.Id)
 	require.Nil(t, err)
 }
 
@@ -86,7 +89,8 @@ func TestServiceEndpointAzureCR_Create_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointAzureCR()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointAzureCR(resourceData, &azureCRTestServiceEndpoint, azureCRTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*azureCRTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointAzureCR(resourceData, &azureCRTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -109,7 +113,8 @@ func TestServiceEndpointAzureCR_Read_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointAzureCR()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointAzureCR(resourceData, &azureCRTestServiceEndpoint, azureCRTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*azureCRTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointAzureCR(resourceData, &azureCRTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -135,7 +140,8 @@ func TestServiceEndpointAzureCR_Delete_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointAzureCR()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointAzureCR(resourceData, &azureCRTestServiceEndpoint, azureCRTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*azureCRTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointAzureCR(resourceData, &azureCRTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -163,7 +169,8 @@ func TestServiceEndpointAzureCR_Update_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointAzureCR()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointAzureCR(resourceData, &azureCRTestServiceEndpoint, azureCRTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*azureCRTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointAzureCR(resourceData, &azureCRTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}

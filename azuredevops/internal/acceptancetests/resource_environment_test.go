@@ -1,7 +1,3 @@
-//go:build (all || resource_environment) && !exclude_resource_environment
-// +build all resource_environment
-// +build !exclude_resource_environment
-
 package acceptancetests
 
 import (
@@ -9,8 +5,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/taskagent"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
@@ -83,7 +79,6 @@ func checkEnvironmentExists(expectedName string) resource.TestCheckFunc {
 		projectID := resource.Primary.Attributes["project_id"]
 
 		environment, err := readEnvironment(clients, id, projectID)
-
 		if err != nil {
 			return fmt.Errorf("Environment with ID=%d cannot be found!. Error=%v", id, err)
 		}

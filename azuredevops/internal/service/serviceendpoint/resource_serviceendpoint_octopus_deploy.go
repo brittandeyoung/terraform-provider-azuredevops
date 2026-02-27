@@ -6,12 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/tfhelper"
 )
@@ -57,11 +55,7 @@ func ResourceServiceEndpointOctopusDeploy() *schema.Resource {
 
 func resourceServiceEndpointOctopusDeployCreate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, _, err := expandServiceEndpointOctopusDeploy(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
-	}
-
+	serviceEndpoint := expandServiceEndpointOctopusDeploy(d)
 	serviceEndPoint, err := createServiceEndpoint(d, clients, serviceEndpoint)
 	if err != nil {
 		return err
@@ -79,47 +73,38 @@ func resourceServiceEndpointOctopusDeployRead(d *schema.ResourceData, m interfac
 	}
 
 	serviceEndpoint, err := clients.ServiceEndpointClient.GetServiceEndpointDetails(clients.Ctx, *getArgs)
+	if isServiceEndpointDeleted(d, err, serviceEndpoint, getArgs) {
+		return nil
+	}
 	if err != nil {
-		if utils.ResponseWasNotFound(err) {
-			d.SetId("")
-			return nil
-		}
-		return fmt.Errorf(" looking up service endpoint given ID (%v) and project ID (%v): %v", getArgs.EndpointId, getArgs.Project, err)
+		return fmt.Errorf("looking up service endpoint given ID (%s) and project ID (%s): %v", getArgs.EndpointId, *getArgs.Project, err)
 	}
 
-	flattenServiceEndpointOctopusDeploy(d, serviceEndpoint, (*serviceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	if err = checkServiceConnection(serviceEndpoint); err != nil {
+		return err
+	}
+	flattenServiceEndpointOctopusDeploy(d, serviceEndpoint)
 	return nil
 }
 
 func resourceServiceEndpointOctopusDeployUpdate(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectID, err := expandServiceEndpointOctopusDeploy(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
+	serviceEndpoint := expandServiceEndpointOctopusDeploy(d)
+	if _, err := updateServiceEndpoint(clients, serviceEndpoint); err != nil {
+		return fmt.Errorf("Updating service endpoint in Azure DevOps: %+v", err)
 	}
 
-	updatedServiceEndpoint, err := updateServiceEndpoint(clients, serviceEndpoint)
-
-	if err != nil {
-		return fmt.Errorf("Error updating service endpoint in Azure DevOps: %+v", err)
-	}
-
-	flattenServiceEndpointOctopusDeploy(d, updatedServiceEndpoint, projectID.String())
 	return resourceServiceEndpointOctopusDeployRead(d, m)
 }
 
 func resourceServiceEndpointOctopusDeployDelete(d *schema.ResourceData, m interface{}) error {
 	clients := m.(*client.AggregatedClient)
-	serviceEndpoint, projectId, err := expandServiceEndpointOctopusDeploy(d)
-	if err != nil {
-		return fmt.Errorf(errMsgTfConfigRead, err)
-	}
-
-	return deleteServiceEndpoint(clients, projectId, serviceEndpoint.Id, d.Timeout(schema.TimeoutDelete))
+	serviceEndpoint := expandServiceEndpointOctopusDeploy(d)
+	return deleteServiceEndpoint(clients, serviceEndpoint, d.Timeout(schema.TimeoutDelete))
 }
 
-func expandServiceEndpointOctopusDeploy(d *schema.ResourceData) (*serviceendpoint.ServiceEndpoint, *uuid.UUID, error) {
-	serviceEndpoint, projectID := doBaseExpansion(d)
+func expandServiceEndpointOctopusDeploy(d *schema.ResourceData) *serviceendpoint.ServiceEndpoint {
+	serviceEndpoint := doBaseExpansion(d)
 	serviceEndpoint.Authorization = &serviceendpoint.EndpointAuthorization{
 		Parameters: &map[string]string{
 			"apitoken": d.Get("api_key").(string),
@@ -132,17 +117,18 @@ func expandServiceEndpointOctopusDeploy(d *schema.ResourceData) (*serviceendpoin
 	}
 	serviceEndpoint.Type = converter.String("OctopusEndpoint")
 	serviceEndpoint.Url = converter.String(d.Get("url").(string))
-	return serviceEndpoint, projectID, nil
+	return serviceEndpoint
 }
 
-func flattenServiceEndpointOctopusDeploy(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint, projectID string) {
-	doBaseFlattening(d, serviceEndpoint, projectID)
+func flattenServiceEndpointOctopusDeploy(d *schema.ResourceData, serviceEndpoint *serviceendpoint.ServiceEndpoint) {
+	doBaseFlattening(d, serviceEndpoint)
 	d.Set("url", *serviceEndpoint.Url)
 
 	if v, ok := (*serviceEndpoint.Data)["ignoreSslErrors"]; ok && v != "" {
 		ignoreSslErrors, err := strconv.ParseBool(v)
 		if err != nil {
-			panic(fmt.Errorf(" Failed to parse OctopusDeploy.ignore_ssl_error.(Project: %s), (service endpoint:%s) ,Error: %+v", *serviceEndpoint.Name, projectID, err))
+			panic(fmt.Errorf("Failed to parse OctopusDeploy.ignore_ssl_error.(Project: %s), (service endpoint:%s) ,Error: %+v",
+				*serviceEndpoint.Name, (*serviceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id, err))
 		}
 		d.Set("ignore_ssl_error", ignoreSslErrors)
 	}

@@ -1,14 +1,10 @@
-//go:build (all || core || data_sources || data_area) && (!exclude_data_sources || !exclude_data_area)
-// +build all core data_sources data_area
-// +build !exclude_data_sources !exclude_data_area
-
 package acceptancetests
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/acceptancetests/testutils"
 )
 
@@ -18,8 +14,9 @@ func TestAccAreaDataSource_Read(t *testing.T) {
 %s
 
 data "azuredevops_area" "root-area" {
-	project_id     = azuredevops_project.project.id
+  project_id = azuredevops_project.project.id
 }
+
 
 `, testutils.HclProjectResource(projectName))
 
@@ -49,9 +46,10 @@ func TestAccAreaDataSource_ReadNoChildren(t *testing.T) {
 %s
 
 data "azuredevops_area" "root-area" {
-	project_id     = azuredevops_project.project.id
-	fetch_children = false
+  project_id     = azuredevops_project.project.id
+  fetch_children = false
 }
+
 
 `, testutils.HclProjectResource(projectName))
 

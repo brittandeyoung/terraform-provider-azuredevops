@@ -60,21 +60,36 @@ resource "azuredevops_repository_policy_case_enforcement" "example" {
 
 The following arguments are supported:
 
-- `project_id` - (Required) The ID of the project in which the policy will be created.
-- `enabled` - (Optional) A flag indicating if the policy should be enabled. Defaults to `true`.
-- `blocking` - (Optional) A flag indicating if the policy should be blocking. Defaults to `true`.
-- `enforce_consistent_case` - (Required) Avoid case-sensitivity conflicts by blocking pushes that change name casing on files, folders, branches, and tags.
-- `repository_ids` (Optional) Control whether the policy is enabled for the repository or the project. If `repository_ids` not configured, the policy will be set to the project.
+* `project_id` - (Required) The ID of the project in which the policy will be created.
+
+* `enforce_consistent_case` - (Required) Avoid case-sensitivity conflicts by blocking pushes that change name casing on files, folders, branches, and tags.
+
+---
+
+* `blocking` - (Optional) A flag indicating if the policy should be blocking. Defaults to `true`.
+
+* `enabled` - (Optional) A flag indicating if the policy should be enabled. Defaults to `true`.
+
+* `repository_ids` (Optional) Control whether the policy is enabled for the repository or the project. If `repository_ids` not configured, the policy will be set to the project.
 
 ## Attributes Reference
 
 In addition to all arguments above, the following attributes are exported:
 
-- `id` - The ID of the repository policy.
+* `id` - The ID of the repository policy.
 
 ## Relevant Links
 
 - [Azure DevOps Service REST API 7.0 - Policy Configurations](https://docs.microsoft.com/en-us/rest/api/azure/devops/policy/configurations?view=azure-devops-rest-7.0)
+
+## Timeouts
+
+The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts) for certain actions:
+
+* `create` - (Defaults to 10 minutes) Used when creating the Case Enforcement Repository Policy.
+* `read` - (Defaults to 5 minute) Used when retrieving the Case Enforcement Repository Policy.
+* `update` - (Defaults to 10 minutes) Used when updating the Case Enforcement Repository Policy.
+* `delete` - (Defaults to 10 minutes) Used when deleting the Case Enforcement Repository Policy.
 
 ## Import
 

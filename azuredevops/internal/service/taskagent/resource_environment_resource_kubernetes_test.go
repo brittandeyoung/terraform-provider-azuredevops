@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/microsoft/terraform-provider-azuredevops/azdosdkmocks"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -23,11 +23,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testEnvironmentKubernetesResourceProjectId = uuid.New()
-var testEnvironmentKubernetesResourceServiceEndpointId = uuid.New()
-var testEnvironmentKubernetesResourceEnvironmentId = rand.Intn(100)
-var testEnvironmentKubernetesResourceId = rand.Intn(100)
-var testEnvironmentKubernetesResourceTags = []string{"test1", "test2"}
+var (
+	testEnvironmentKubernetesResourceProjectId         = uuid.New()
+	testEnvironmentKubernetesResourceServiceEndpointId = uuid.New()
+	testEnvironmentKubernetesResourceEnvironmentId     = rand.Intn(100)
+	testEnvironmentKubernetesResourceId                = rand.Intn(100)
+	testEnvironmentKubernetesResourceTags              = []string{"test1", "test2"}
+)
 
 var testEnvironmentKubernetesResource = taskagent.KubernetesResource{
 	EnvironmentReference: &taskagent.EnvironmentReference{

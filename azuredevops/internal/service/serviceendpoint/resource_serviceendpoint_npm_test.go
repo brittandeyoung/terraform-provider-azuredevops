@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/serviceendpoint"
@@ -17,11 +16,14 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-var npmTestServiceEndpointID = uuid.New()
-var npmRandomServiceEndpointProjectID = uuid.New()
-var npmTestServiceEndpointProjectID = &npmRandomServiceEndpointProjectID
+var (
+	npmTestServiceEndpointID          = uuid.New()
+	npmRandomServiceEndpointProjectID = uuid.New()
+	npmTestServiceEndpointProjectID   = &npmRandomServiceEndpointProjectID
+)
 
 var npmTestServiceEndpoint = serviceendpoint.ServiceEndpoint{
 	Authorization: &serviceendpoint.EndpointAuthorization{
@@ -50,12 +52,13 @@ var npmTestServiceEndpoint = serviceendpoint.ServiceEndpoint{
 // verifies that the flatten/expand round trip yields the same service endpoint
 func TestServiceEndpointNpm_ExpandFlatten_Roundtrip(t *testing.T) {
 	resourceData := schema.TestResourceDataRaw(t, ResourceServiceEndpointNpm().Schema, nil)
-	flattenServiceEndpointNpm(resourceData, &npmTestServiceEndpoint, npmTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*npmTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointNpm(resourceData, &npmTestServiceEndpoint)
 
-	serviceEndpointAfterRoundTrip, projectID, err := expandServiceEndpointNpm(resourceData)
+	serviceEndpointAfterRoundTrip, err := expandServiceEndpointNpm(resourceData)
 
 	require.Equal(t, npmTestServiceEndpoint, *serviceEndpointAfterRoundTrip)
-	require.Equal(t, npmTestServiceEndpointProjectID, projectID)
+	require.Equal(t, npmTestServiceEndpointProjectID, (*serviceEndpointAfterRoundTrip.ServiceEndpointProjectReferences)[0].ProjectReference.Id)
 	require.Nil(t, err)
 }
 
@@ -66,7 +69,8 @@ func TestServiceEndpointNpm_Create_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointNpm()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointNpm(resourceData, &npmTestServiceEndpoint, npmTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*npmTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointNpm(resourceData, &npmTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -89,7 +93,8 @@ func TestServiceEndpointNpm_Read_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointNpm()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointNpm(resourceData, &npmTestServiceEndpoint, npmTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*npmTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointNpm(resourceData, &npmTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -115,7 +120,8 @@ func TestServiceEndpointNpm_Delete_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointNpm()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointNpm(resourceData, &npmTestServiceEndpoint, npmTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*npmTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointNpm(resourceData, &npmTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
@@ -143,7 +149,8 @@ func TestServiceEndpointNpm_Update_DoesNotSwallowError(t *testing.T) {
 
 	r := ResourceServiceEndpointNpm()
 	resourceData := schema.TestResourceDataRaw(t, r.Schema, nil)
-	flattenServiceEndpointNpm(resourceData, &npmTestServiceEndpoint, npmTestServiceEndpointProjectID.String())
+	resourceData.Set("project_id", (*npmTestServiceEndpoint.ServiceEndpointProjectReferences)[0].ProjectReference.Id.String())
+	flattenServiceEndpointNpm(resourceData, &npmTestServiceEndpoint)
 
 	buildClient := azdosdkmocks.NewMockServiceendpointClient(ctrl)
 	clients := &client.AggregatedClient{ServiceEndpointClient: buildClient, Ctx: context.Background()}
