@@ -92,15 +92,21 @@ The following arguments are supported:
 
 ---
 
+* `acceptance_criteria` - (Optional) A clear definition of "Done" established before development begins. Sets the `Microsoft.VSTS.Common.AcceptanceCriteria` field for the work item. Note that this field is only available for certain work item types (like `User Story`) that support it within the project's process.
+
 * `area_path` - (Optional) Specifies the area where the Work Item is used.
 
 * `custom_fields` - (Optional) Specifies a list with Custom Fields for the Work Item.
+
+* `description` - (Optional) A description for the Work Item.
 
 * `iteration_path` - (Optional) Specifies the iteration in which the Work Item is used.
 
 * `parent_id` - (Optional) The parent work item.
 
 * `state` - (Optional) The state of the Work Item. The four main states that are defined for the User Story (`Agile`) are `New`, `Active`, `Resolved`, and `Closed`. See [Workflow states](https://learn.microsoft.com/en-us/azure/devops/boards/work-items/workflow-and-state-categories?view=azure-devops&tabs=agile-process#workflow-states) for more details.
+
+* `story_points` - (Optional) The size of work estimated. Sets the `Microsoft.VSTS.Scheduling.StoryPoints` field for the work item. Note that this field is only available for certain work item types (like `User Story`) that support it within the project's process.
 
 * `tags` - (Optional) Specifies a list of Tags.
   

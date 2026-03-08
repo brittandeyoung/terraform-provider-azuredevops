@@ -16,24 +16,35 @@ import (
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/tfhelper"
 )
 
+const (
+	customFieldsPrefix = "Custom."
+)
+
 var systemFieldMapping = map[string]string{
 	"System.State":         "state",
 	"System.Title":         "title",
 	"System.WorkItemType":  "type",
 	"System.AreaPath":      "area_path",
 	"System.IterationPath": "iteration_path",
-
-	"System.Parent": "parent_id",
+	"System.Parent":        "parent_id",
+	"System.Description":   "description",
 }
 
 var fieldMapping = map[string]string{
-	"title":          "System.Title",
-	"type":           "System.WorkItemType",
-	"state":          "System.State",
-	"area_path":      "System.AreaPath",
-	"iteration_path": "System.IterationPath",
+	"title":               "System.Title",
+	"type":                "System.WorkItemType",
+	"state":               "System.State",
+	"area_path":           "System.AreaPath",
+	"iteration_path":      "System.IterationPath",
+	"parent_id":           "System.Parent",
+	"description":         "System.Description",
+	"story_points":        "Microsoft.VSTS.Scheduling.StoryPoints",
+	"acceptance_criteria": "Microsoft.VSTS.Common.AcceptanceCriteria",
+}
 
-	"parent_id": "System.Parent",
+var managedFieldMapping = map[string]string{
+	"Microsoft.VSTS.Scheduling.StoryPoints":    "story_points",
+	"Microsoft.VSTS.Common.AcceptanceCriteria": "acceptance_criteria",
 }
 
 func ResourceWorkItem() *schema.Resource {
@@ -53,6 +64,20 @@ func ResourceWorkItem() *schema.Resource {
 			"title": {
 				Type:         schema.TypeString,
 				Required:     true,
+				ValidateFunc: validation.StringIsNotWhiteSpace,
+			},
+			"description": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringIsNotWhiteSpace,
+			},
+			"story_points": {
+				Type:     schema.TypeFloat,
+				Optional: true,
+			},
+			"acceptance_criteria": {
+				Type:         schema.TypeString,
+				Optional:     true,
 				ValidateFunc: validation.StringIsNotWhiteSpace,
 			},
 			"project_id": {
@@ -140,7 +165,7 @@ func resourceWorkItemCreate(d *schema.ResourceData, m interface{}) error {
 	orgName := strings.Split(clients.OrganizationURL, "/")[3]
 
 	var operations []webapi.JsonPatchOperation
-	operations = expandSystemFields(d, operations, orgName)
+	operations = expandMappedFields(d, operations, orgName)
 	operations = expandCustomFields(d, operations)
 	operations = expandTags(d, operations, webapi.OperationValues.Add)
 
@@ -211,7 +236,7 @@ func resourceWorkItemUpdate(d *schema.ResourceData, m interface{}) error {
 	orgName := strings.Split(clients.OrganizationURL, "/")[3]
 
 	var operations []webapi.JsonPatchOperation
-	operations = expandSystemFields(d, operations, orgName)
+	operations = expandMappedFields(d, operations, orgName)
 	operations = expandCustomFields(d, operations)
 	operations = expandTags(d, operations, webapi.OperationValues.Replace)
 
@@ -255,16 +280,17 @@ func expandCustomFields(d *schema.ResourceData, operations []webapi.JsonPatchOpe
 		operations = append(operations, webapi.JsonPatchOperation{
 			Op:    &webapi.OperationValues.Add,
 			From:  nil,
-			Path:  converter.String("/fields/Custom." + customFieldName),
+			Path:  converter.String("/fields/" + customFieldsPrefix + customFieldName),
 			Value: customFieldValue,
 		})
 	}
 	return operations
 }
 
-func expandSystemFields(d *schema.ResourceData, operations []webapi.JsonPatchOperation, organizationName string) []webapi.JsonPatchOperation {
+func expandMappedFields(d *schema.ResourceData, operations []webapi.JsonPatchOperation, organizationName string) []webapi.JsonPatchOperation {
 	for terraformProperty, apiName := range fieldMapping {
-		if terraformProperty == "parent_id" {
+		switch terraformProperty {
+		case "parent_id":
 			if d.HasChange("parent_id") {
 				oldParentId, newParentId := d.GetChange("parent_id")
 				if oldParentId.(int) > 0 {
@@ -294,7 +320,16 @@ func expandSystemFields(d *schema.ResourceData, operations []webapi.JsonPatchOpe
 					})
 				}
 			}
-		} else {
+		case "story_points":
+			if value, ok := d.Get(terraformProperty).(float64); ok {
+				operations = append(operations, webapi.JsonPatchOperation{
+					Op:    &webapi.OperationValues.Add,
+					From:  nil,
+					Path:  converter.String("/fields/" + apiName),
+					Value: value,
+				})
+			}
+		default:
 			value := d.Get(terraformProperty).(string)
 			if value != "" {
 				operations = append(operations, webapi.JsonPatchOperation{
@@ -335,12 +370,14 @@ func flattenFields(d *schema.ResourceData, m *map[string]interface{}) {
 	for key, value := range *m {
 		if v, ok := systemFieldMapping[key]; ok {
 			d.Set(v, value)
-		} else if strings.HasPrefix(key, "Custom.") {
-			keyWithoutCustom := strings.ReplaceAll(key, "Custom.", "")
-			customFields[keyWithoutCustom] = value
+		} else if v, ok := managedFieldMapping[key]; ok {
+			d.Set(v, value)
+		} else if strings.HasPrefix(key, customFieldsPrefix) {
+			customFields[strings.ReplaceAll(key, customFieldsPrefix, "")] = value
 		} else if "System.Tags" == key {
 			d.Set("tags", strings.Split(value.(string), "; "))
 		}
 	}
+
 	d.Set("custom_fields", customFields)
 }

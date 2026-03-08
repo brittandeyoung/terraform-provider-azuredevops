@@ -2,6 +2,7 @@ package acceptancetests
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -258,6 +259,192 @@ func TestAccWorkItem_parentDelete(t *testing.T) {
 	})
 }
 
+func TestAccWorkItem_storyPoints(t *testing.T) {
+	workItemTitle := testutils.GenerateResourceName()
+	projectName := testutils.GenerateResourceName()
+	tfNode := "azuredevops_workitem.test"
+	storyPoints := 5.0
+	storyPointsUpdate := 3.2
+	itemType := "User Story"
+	itemTypeAlternative := "Issue"
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:          func() { testutils.PreCheck(t, nil) },
+		ProviderFactories: testutils.GetProviderFactories(),
+		CheckDestroy:      testutils.CheckProjectDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: workItemStoryPoints(projectName, workItemTitle, itemType, storyPoints),
+				Check: resource.ComposeTestCheckFunc(
+					testutils.CheckProjectExists(projectName),
+					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
+					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
+					resource.TestCheckResourceAttrSet(tfNode, "url"),
+					resource.TestCheckResourceAttr(tfNode, "type", itemType),
+					resource.TestCheckResourceAttr(tfNode, "state", "New"),
+					resource.TestCheckResourceAttr(tfNode, "story_points", strconv.FormatFloat(storyPoints, 'f', -1, 64)),
+				),
+			},
+			{
+				Config: workItemStoryPoints(projectName, workItemTitle, itemType, storyPointsUpdate),
+				Check: resource.ComposeTestCheckFunc(
+					testutils.CheckProjectExists(projectName),
+					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
+					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
+					resource.TestCheckResourceAttrSet(tfNode, "url"),
+					resource.TestCheckResourceAttr(tfNode, "type", itemType),
+					resource.TestCheckResourceAttr(tfNode, "state", "New"),
+					resource.TestCheckResourceAttr(tfNode, "story_points", strconv.FormatFloat(storyPointsUpdate, 'f', -1, 64)),
+				),
+			},
+			{
+				ResourceName:      tfNode,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateIdFunc: testutils.ComputeProjectQualifiedResourceImportID(tfNode),
+			},
+			{
+				Config: workItemStoryPoints(projectName, workItemTitle, itemTypeAlternative, storyPointsUpdate),
+				Check: resource.ComposeTestCheckFunc(
+					testutils.CheckProjectExists(projectName),
+					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
+					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
+					resource.TestCheckResourceAttrSet(tfNode, "url"),
+					resource.TestCheckResourceAttr(tfNode, "type", itemTypeAlternative),
+					resource.TestCheckResourceAttr(tfNode, "state", "Active"),
+					resource.TestCheckResourceAttr(tfNode, "story_points", strconv.FormatFloat(storyPointsUpdate, 'f', -1, 64)),
+				),
+			},
+			{
+				ResourceName:      tfNode,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateIdFunc: testutils.ComputeProjectQualifiedResourceImportID(tfNode),
+			},
+		},
+	})
+}
+
+func TestAccWorkItem_description(t *testing.T) {
+	workItemTitle := testutils.GenerateResourceName()
+	projectName := testutils.GenerateResourceName()
+	tfNode := "azuredevops_workitem.test"
+	description := testutils.GenerateResourceName()
+	descriptionUpdate := testutils.GenerateResourceName()
+	itemType := "User Story"
+	itemTypeAlternative := "Issue"
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:          func() { testutils.PreCheck(t, nil) },
+		ProviderFactories: testutils.GetProviderFactories(),
+		CheckDestroy:      testutils.CheckProjectDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: workItemDescription(projectName, workItemTitle, itemType, description),
+				Check: resource.ComposeTestCheckFunc(
+					testutils.CheckProjectExists(projectName),
+					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
+					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
+					resource.TestCheckResourceAttrSet(tfNode, "url"),
+					resource.TestCheckResourceAttr(tfNode, "type", itemType),
+					resource.TestCheckResourceAttr(tfNode, "state", "New"),
+					resource.TestCheckResourceAttr(tfNode, "description", description),
+				),
+			},
+			{
+				Config: workItemDescription(projectName, workItemTitle, itemType, descriptionUpdate),
+				Check: resource.ComposeTestCheckFunc(
+					testutils.CheckProjectExists(projectName),
+					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
+					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
+					resource.TestCheckResourceAttrSet(tfNode, "url"),
+					resource.TestCheckResourceAttr(tfNode, "type", itemType),
+					resource.TestCheckResourceAttr(tfNode, "state", "New"),
+					resource.TestCheckResourceAttr(tfNode, "description", descriptionUpdate),
+				),
+			},
+			{
+				ResourceName:      tfNode,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateIdFunc: testutils.ComputeProjectQualifiedResourceImportID(tfNode),
+			},
+			{
+				Config: workItemDescription(projectName, workItemTitle, itemTypeAlternative, descriptionUpdate),
+				Check: resource.ComposeTestCheckFunc(
+					testutils.CheckProjectExists(projectName),
+					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
+					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
+					resource.TestCheckResourceAttrSet(tfNode, "url"),
+					resource.TestCheckResourceAttr(tfNode, "type", itemTypeAlternative),
+					resource.TestCheckResourceAttr(tfNode, "state", "Active"),
+					resource.TestCheckResourceAttr(tfNode, "description", descriptionUpdate),
+				),
+			},
+		},
+	})
+}
+
+func TestAccWorkItem_acceptanceCriteria(t *testing.T) {
+	workItemTitle := testutils.GenerateResourceName()
+	projectName := testutils.GenerateResourceName()
+	tfNode := "azuredevops_workitem.test"
+	acceptanceCriteria := testutils.GenerateResourceName()
+	acceptanceCriteriaUpdate := testutils.GenerateResourceName()
+	itemType := "User Story"
+	itemTypeAlternative := "Issue"
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:          func() { testutils.PreCheck(t, nil) },
+		ProviderFactories: testutils.GetProviderFactories(),
+		CheckDestroy:      testutils.CheckProjectDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: workItemAcceptanceCriteria(projectName, workItemTitle, itemType, acceptanceCriteria),
+				Check: resource.ComposeTestCheckFunc(
+					testutils.CheckProjectExists(projectName),
+					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
+					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
+					resource.TestCheckResourceAttrSet(tfNode, "url"),
+					resource.TestCheckResourceAttr(tfNode, "type", itemType),
+					resource.TestCheckResourceAttr(tfNode, "state", "New"),
+					resource.TestCheckResourceAttr(tfNode, "acceptance_criteria", acceptanceCriteria),
+				),
+			},
+			{
+				Config: workItemAcceptanceCriteria(projectName, workItemTitle, itemType, acceptanceCriteriaUpdate),
+				Check: resource.ComposeTestCheckFunc(
+					testutils.CheckProjectExists(projectName),
+					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
+					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
+					resource.TestCheckResourceAttrSet(tfNode, "url"),
+					resource.TestCheckResourceAttr(tfNode, "type", itemType),
+					resource.TestCheckResourceAttr(tfNode, "state", "New"),
+					resource.TestCheckResourceAttr(tfNode, "acceptance_criteria", acceptanceCriteriaUpdate),
+				),
+			},
+			{
+				ResourceName:      tfNode,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateIdFunc: testutils.ComputeProjectQualifiedResourceImportID(tfNode),
+			},
+			{
+				Config: workItemAcceptanceCriteria(projectName, workItemTitle, itemTypeAlternative, acceptanceCriteriaUpdate),
+				Check: resource.ComposeTestCheckFunc(
+					testutils.CheckProjectExists(projectName),
+					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
+					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
+					resource.TestCheckResourceAttrSet(tfNode, "url"),
+					resource.TestCheckResourceAttr(tfNode, "type", itemTypeAlternative),
+					resource.TestCheckResourceAttr(tfNode, "state", "Active"),
+					resource.TestCheckResourceAttr(tfNode, "acceptance_criteria", acceptanceCriteriaUpdate),
+				),
+			},
+		},
+	})
+}
+
 func workItemTemplate(name string) string {
 	return fmt.Sprintf(`
 resource "azuredevops_project" "project" {
@@ -360,4 +547,46 @@ resource "azuredevops_workitem" "test" {
   parent_id  = azuredevops_workitem.parent2.id
 }
 `, template, title)
+}
+
+func workItemStoryPoints(projectNane string, title string, itemType string, storyPoints float64) string {
+	template := workItemTemplate(projectNane)
+	return fmt.Sprintf(`
+%s
+
+resource "azuredevops_workitem" "test" {
+  title      = "%s"
+  project_id = azuredevops_project.project.id
+  type       = "%s"
+  story_points = %f
+}
+`, template, title, itemType, storyPoints)
+}
+
+func workItemDescription(projectNane string, title string, itemType string, description string) string {
+	template := workItemTemplate(projectNane)
+	return fmt.Sprintf(`
+%s
+
+resource "azuredevops_workitem" "test" {
+  title      = "%s"
+  project_id = azuredevops_project.project.id
+  type       = "%s"
+  description = "%s"
+}
+`, template, title, itemType, description)
+}
+
+func workItemAcceptanceCriteria(projectNane string, title string, itemType string, acceptanceCriteria string) string {
+	template := workItemTemplate(projectNane)
+	return fmt.Sprintf(`
+%s
+
+resource "azuredevops_workitem" "test" {
+  title      = "%s"
+  project_id = azuredevops_project.project.id
+  type       = "%s"
+  acceptance_criteria = "%s"
+}
+`, template, title, itemType, acceptanceCriteria)
 }
