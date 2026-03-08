@@ -555,9 +555,9 @@ func workItemStoryPoints(projectNane string, title string, itemType string, stor
 %s
 
 resource "azuredevops_workitem" "test" {
-  title      = "%s"
-  project_id = azuredevops_project.project.id
-  type       = "%s"
+  title        = "%s"
+  project_id   = azuredevops_project.project.id
+  type         = "%s"
   story_points = %f
 }
 `, template, title, itemType, storyPoints)
@@ -569,9 +569,9 @@ func workItemDescription(projectNane string, title string, itemType string, desc
 %s
 
 resource "azuredevops_workitem" "test" {
-  title      = "%s"
-  project_id = azuredevops_project.project.id
-  type       = "%s"
+  title       = "%s"
+  project_id  = azuredevops_project.project.id
+  type        = "%s"
   description = "%s"
 }
 `, template, title, itemType, description)
@@ -583,9 +583,9 @@ func workItemAcceptanceCriteria(projectNane string, title string, itemType strin
 %s
 
 resource "azuredevops_workitem" "test" {
-  title      = "%s"
-  project_id = azuredevops_project.project.id
-  type       = "%s"
+  title               = "%s"
+  project_id          = azuredevops_project.project.id
+  type                = "%s"
   acceptance_criteria = "%s"
 }
 `, template, title, itemType, acceptanceCriteria)
