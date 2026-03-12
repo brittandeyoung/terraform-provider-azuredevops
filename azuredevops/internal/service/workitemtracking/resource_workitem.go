@@ -162,7 +162,6 @@ func resourceWorkItemCreate(d *schema.ResourceData, m interface{}) error {
 	operations = expandSystemFields(d, operations, orgName)
 	operations = expandCustomFields(d, operations)
 	operations, err := expandAdditionalFields(d, operations)
-
 	if err != nil {
 		return err
 	}
@@ -208,7 +207,6 @@ func resourceWorkItemRead(d *schema.ResourceData, m interface{}) error {
 		if workItem.Url != nil {
 			d.Set("url", *workItem.Url)
 			err = flattenFields(d, workItem.Fields)
-
 			if err != nil {
 				return err
 			}
@@ -243,7 +241,6 @@ func resourceWorkItemUpdate(d *schema.ResourceData, m interface{}) error {
 	operations = expandSystemFields(d, operations, orgName)
 	operations = expandCustomFields(d, operations)
 	operations, err = expandAdditionalFields(d, operations)
-
 	if err != nil {
 		return err
 	}
@@ -389,7 +386,6 @@ func flattenFields(d *schema.ResourceData, m *map[string]interface{}) error {
 	if v, ok := d.Get("additional_fields_json").(string); ok && v != "" {
 		configJsonString := d.Get("additional_fields_json").(string)
 		err := json.Unmarshal([]byte(configJsonString), &configMap)
-
 		if err != nil {
 			return err
 		}
