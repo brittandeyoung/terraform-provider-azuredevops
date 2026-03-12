@@ -207,7 +207,11 @@ func resourceWorkItemRead(d *schema.ResourceData, m interface{}) error {
 	if workItem != nil {
 		if workItem.Url != nil {
 			d.Set("url", *workItem.Url)
-			flattenFields(d, workItem.Fields)
+			err = flattenFields(d, workItem.Fields)
+
+			if err != nil {
+				return err
+			}
 		}
 
 		var relations []map[string]interface{}
