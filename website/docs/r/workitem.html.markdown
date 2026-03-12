@@ -23,11 +23,12 @@ resource "azuredevops_project" "example" {
 }
 
 resource "azuredevops_workitem" "example" {
-  project_id = data.azuredevops_project.example.id
-  title      = "Example Work Item"
-  type       = "Issue"
-  state      = "Active"
-  tags       = ["Tag"]
+  project_id  = data.azuredevops_project.example.id
+  title       = "Example Work Item"
+  description = "Managed by Terraform"
+  type        = "Issue"
+  state       = "Active"
+  tags        = ["Tag"]
 }
 ```
 
@@ -80,6 +81,32 @@ resource "azuredevops_workitem" "example" {
 }
 ```
 
+### With Additional Fields
+
+```hcl
+resource "azuredevops_project" "example" {
+  name               = "Example Project"
+  work_item_template = "Agile"
+  version_control    = "Git"
+  visibility         = "private"
+  description        = "Managed by Terraform"
+}
+
+resource "azuredevops_workitem" "example" {
+  project_id = data.azuredevops_project.example.id
+  title      = "Example Work Item"
+  type       = "User Story"
+  state      = "New"
+  tags       = ["Tag"]
+  additional_fields_json = jsonencode({
+    "Microsoft.VSTS.Scheduling.StoryPoints"    = 5
+    "Microsoft.VSTS.Common.AcceptanceCriteria" = "This is our definition of done"
+    "Microsoft.VSTS.Common.Priority"           = 2
+    "Microsoft.VSTS.Common.ValueArea"          = "Business"
+  })
+}
+```
+
 ## Arguments Reference
 
 The following arguments are supported:
@@ -92,11 +119,11 @@ The following arguments are supported:
 
 ---
 
-* `acceptance_criteria` - (Optional) A clear definition of "Done" established before development begins. Sets the `Microsoft.VSTS.Common.AcceptanceCriteria` field for the work item. Note that this field is only available for certain work item types (like `User Story`) that support it within the project's process.
+* `additional_fields_json` - (Optional) Specifies a json formatted string of additional fields for the Work Item.
 
 * `area_path` - (Optional) Specifies the area where the Work Item is used.
 
-* `custom_fields` - (Optional) Specifies a list with Custom Fields for the Work Item.
+* `custom_fields` - (Optional, **Deprecated** use `additional_fields_json` argument instead) Specifies a list with Custom Fields for the Work Item.
 
 * `description` - (Optional) A description for the Work Item.
 
@@ -105,8 +132,6 @@ The following arguments are supported:
 * `parent_id` - (Optional) The parent work item.
 
 * `state` - (Optional) The state of the Work Item. The four main states that are defined for the User Story (`Agile`) are `New`, `Active`, `Resolved`, and `Closed`. See [Workflow states](https://learn.microsoft.com/en-us/azure/devops/boards/work-items/workflow-and-state-categories?view=azure-devops&tabs=agile-process#workflow-states) for more details.
-
-* `story_points` - (Optional) The size of work estimated. Sets the `Microsoft.VSTS.Scheduling.StoryPoints` field for the work item. Note that this field is only available for certain work item types (like `User Story`) that support it within the project's process.
 
 * `tags` - (Optional) Specifies a list of Tags.
   

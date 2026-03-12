@@ -1,8 +1,8 @@
 package acceptancetests
 
 import (
+	"encoding/json"
 	"fmt"
-	"strconv"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -259,14 +259,14 @@ func TestAccWorkItem_parentDelete(t *testing.T) {
 	})
 }
 
-func TestAccWorkItem_storyPoints(t *testing.T) {
+func TestAccWorkItem_additionalFieldsJson(t *testing.T) {
 	workItemTitle := testutils.GenerateResourceName()
 	projectName := testutils.GenerateResourceName()
 	tfNode := "azuredevops_workitem.test"
-	storyPoints := 5.0
+	storyPoints := 5.00
 	storyPointsUpdate := 3.2
-	itemType := "User Story"
-	itemTypeAlternative := "Issue"
+	acceptanceCriteria := testutils.GenerateResourceName()
+	acceptanceCriteriaUpdate := testutils.GenerateResourceName()
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:          func() { testutils.PreCheck(t, nil) },
@@ -274,27 +274,57 @@ func TestAccWorkItem_storyPoints(t *testing.T) {
 		CheckDestroy:      testutils.CheckProjectDestroyed,
 		Steps: []resource.TestStep{
 			{
-				Config: workItemStoryPoints(projectName, workItemTitle, itemType, storyPoints),
+				Config: workItemAdditionalFields(projectName, workItemTitle, fmt.Sprintf("%f", storyPoints), acceptanceCriteria),
 				Check: resource.ComposeTestCheckFunc(
 					testutils.CheckProjectExists(projectName),
 					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
 					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
 					resource.TestCheckResourceAttrSet(tfNode, "url"),
-					resource.TestCheckResourceAttr(tfNode, "type", itemType),
+					resource.TestCheckResourceAttr(tfNode, "type", "User Story"),
 					resource.TestCheckResourceAttr(tfNode, "state", "New"),
-					resource.TestCheckResourceAttr(tfNode, "story_points", strconv.FormatFloat(storyPoints, 'f', -1, 64)),
+					resource.TestCheckResourceAttrWith(tfNode, "additional_fields_json", func(value string) error {
+						var m map[string]interface{}
+						if err := json.Unmarshal([]byte(value), &m); err != nil {
+							return err
+						}
+
+						if m["Microsoft.VSTS.Scheduling.StoryPoints"] != storyPoints {
+							return fmt.Errorf("expected Microsoft.VSTS.Scheduling.StoryPoints %f got %f", storyPoints, m["Microsoft.VSTS.Scheduling.StoryPoints"])
+						}
+
+						if m["Microsoft.VSTS.Common.AcceptanceCriteria"] != acceptanceCriteria {
+							return fmt.Errorf("expected Microsoft.VSTS.Common.AcceptanceCriteria %s, got %s", acceptanceCriteria, m["Microsoft.VSTS.Common.AcceptanceCriteria"])
+						}
+
+						return nil
+					}),
 				),
 			},
 			{
-				Config: workItemStoryPoints(projectName, workItemTitle, itemType, storyPointsUpdate),
+				Config: workItemAdditionalFields(projectName, workItemTitle, fmt.Sprintf("%f", storyPointsUpdate), acceptanceCriteriaUpdate),
 				Check: resource.ComposeTestCheckFunc(
 					testutils.CheckProjectExists(projectName),
 					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
 					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
 					resource.TestCheckResourceAttrSet(tfNode, "url"),
-					resource.TestCheckResourceAttr(tfNode, "type", itemType),
+					resource.TestCheckResourceAttr(tfNode, "type", "User Story"),
 					resource.TestCheckResourceAttr(tfNode, "state", "New"),
-					resource.TestCheckResourceAttr(tfNode, "story_points", strconv.FormatFloat(storyPointsUpdate, 'f', -1, 64)),
+					resource.TestCheckResourceAttrWith(tfNode, "additional_fields_json", func(value string) error {
+						var m map[string]interface{}
+						if err := json.Unmarshal([]byte(value), &m); err != nil {
+							return err
+						}
+
+						if m["Microsoft.VSTS.Scheduling.StoryPoints"] != storyPointsUpdate {
+							return fmt.Errorf("expected Microsoft.VSTS.Scheduling.StoryPoints %f, got %f", storyPointsUpdate, m["Microsoft.VSTS.Scheduling.StoryPoints"])
+						}
+
+						if m["Microsoft.VSTS.Common.AcceptanceCriteria"] != acceptanceCriteriaUpdate {
+							return fmt.Errorf("expected Microsoft.VSTS.Common.AcceptanceCriteria %s, got %s", acceptanceCriteriaUpdate, m["Microsoft.VSTS.Common.AcceptanceCriteria"])
+						}
+
+						return nil
+					}),
 				),
 			},
 			{
@@ -302,24 +332,11 @@ func TestAccWorkItem_storyPoints(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateIdFunc: testutils.ComputeProjectQualifiedResourceImportID(tfNode),
-			},
-			{
-				Config: workItemStoryPoints(projectName, workItemTitle, itemTypeAlternative, storyPointsUpdate),
-				Check: resource.ComposeTestCheckFunc(
-					testutils.CheckProjectExists(projectName),
-					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
-					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
-					resource.TestCheckResourceAttrSet(tfNode, "url"),
-					resource.TestCheckResourceAttr(tfNode, "type", itemTypeAlternative),
-					resource.TestCheckResourceAttr(tfNode, "state", "Active"),
-					resource.TestCheckResourceAttr(tfNode, "story_points", strconv.FormatFloat(storyPointsUpdate, 'f', -1, 64)),
-				),
-			},
-			{
-				ResourceName:      tfNode,
-				ImportState:       true,
-				ImportStateVerify: true,
-				ImportStateIdFunc: testutils.ComputeProjectQualifiedResourceImportID(tfNode),
+				ImportStateVerifyIgnore: []string{
+					// Since we filter fields based on config provided,
+					// this is expected to have a Diff when import is run with no config
+					"additional_fields_json",
+				},
 			},
 		},
 	})
@@ -385,66 +402,6 @@ func TestAccWorkItem_description(t *testing.T) {
 	})
 }
 
-func TestAccWorkItem_acceptanceCriteria(t *testing.T) {
-	workItemTitle := testutils.GenerateResourceName()
-	projectName := testutils.GenerateResourceName()
-	tfNode := "azuredevops_workitem.test"
-	acceptanceCriteria := testutils.GenerateResourceName()
-	acceptanceCriteriaUpdate := testutils.GenerateResourceName()
-	itemType := "User Story"
-	itemTypeAlternative := "Issue"
-
-	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:          func() { testutils.PreCheck(t, nil) },
-		ProviderFactories: testutils.GetProviderFactories(),
-		CheckDestroy:      testutils.CheckProjectDestroyed,
-		Steps: []resource.TestStep{
-			{
-				Config: workItemAcceptanceCriteria(projectName, workItemTitle, itemType, acceptanceCriteria),
-				Check: resource.ComposeTestCheckFunc(
-					testutils.CheckProjectExists(projectName),
-					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
-					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
-					resource.TestCheckResourceAttrSet(tfNode, "url"),
-					resource.TestCheckResourceAttr(tfNode, "type", itemType),
-					resource.TestCheckResourceAttr(tfNode, "state", "New"),
-					resource.TestCheckResourceAttr(tfNode, "acceptance_criteria", acceptanceCriteria),
-				),
-			},
-			{
-				Config: workItemAcceptanceCriteria(projectName, workItemTitle, itemType, acceptanceCriteriaUpdate),
-				Check: resource.ComposeTestCheckFunc(
-					testutils.CheckProjectExists(projectName),
-					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
-					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
-					resource.TestCheckResourceAttrSet(tfNode, "url"),
-					resource.TestCheckResourceAttr(tfNode, "type", itemType),
-					resource.TestCheckResourceAttr(tfNode, "state", "New"),
-					resource.TestCheckResourceAttr(tfNode, "acceptance_criteria", acceptanceCriteriaUpdate),
-				),
-			},
-			{
-				ResourceName:      tfNode,
-				ImportState:       true,
-				ImportStateVerify: true,
-				ImportStateIdFunc: testutils.ComputeProjectQualifiedResourceImportID(tfNode),
-			},
-			{
-				Config: workItemAcceptanceCriteria(projectName, workItemTitle, itemTypeAlternative, acceptanceCriteriaUpdate),
-				Check: resource.ComposeTestCheckFunc(
-					testutils.CheckProjectExists(projectName),
-					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
-					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
-					resource.TestCheckResourceAttrSet(tfNode, "url"),
-					resource.TestCheckResourceAttr(tfNode, "type", itemTypeAlternative),
-					resource.TestCheckResourceAttr(tfNode, "state", "Active"),
-					resource.TestCheckResourceAttr(tfNode, "acceptance_criteria", acceptanceCriteriaUpdate),
-				),
-			},
-		},
-	})
-}
-
 func workItemTemplate(name string) string {
 	return fmt.Sprintf(`
 resource "azuredevops_project" "project" {
@@ -456,8 +413,8 @@ resource "azuredevops_project" "project" {
 }`, name)
 }
 
-func workItemBasic(projectNane string, title string) string {
-	template := workItemTemplate(projectNane)
+func workItemBasic(projectName string, title string) string {
+	template := workItemTemplate(projectName)
 	return fmt.Sprintf(`
 %s
 
@@ -469,8 +426,8 @@ resource "azuredevops_workitem" "test" {
 `, template, title)
 }
 
-func workItemTagUpdate(projectNane string, title string) string {
-	template := workItemTemplate(projectNane)
+func workItemTagUpdate(projectName string, title string) string {
+	template := workItemTemplate(projectName)
 	return fmt.Sprintf(`
 %s
 
@@ -484,8 +441,8 @@ resource "azuredevops_workitem" "test" {
 `, template, title)
 }
 
-func workItemParent(projectNane string, title string) string {
-	template := workItemTemplate(projectNane)
+func workItemParent(projectName string, title string) string {
+	template := workItemTemplate(projectName)
 	return fmt.Sprintf(`
 %[1]s
 
@@ -504,8 +461,8 @@ resource "azuredevops_workitem" "test" {
 `, template, title)
 }
 
-func workItemParentDelete(projectNane string, title string) string {
-	template := workItemTemplate(projectNane)
+func workItemParentDelete(projectName string, title string) string {
+	template := workItemTemplate(projectName)
 	return fmt.Sprintf(`
 %[1]s
 
@@ -523,8 +480,8 @@ resource "azuredevops_workitem" "test" {
 `, template, title)
 }
 
-func workItemParentUpdate(projectNane string, title string) string {
-	template := workItemTemplate(projectNane)
+func workItemParentUpdate(projectName string, title string) string {
+	template := workItemTemplate(projectName)
 	return fmt.Sprintf(`
 %[1]s
 
@@ -549,22 +506,8 @@ resource "azuredevops_workitem" "test" {
 `, template, title)
 }
 
-func workItemStoryPoints(projectNane string, title string, itemType string, storyPoints float64) string {
-	template := workItemTemplate(projectNane)
-	return fmt.Sprintf(`
-%s
-
-resource "azuredevops_workitem" "test" {
-  title        = "%s"
-  project_id   = azuredevops_project.project.id
-  type         = "%s"
-  story_points = %f
-}
-`, template, title, itemType, storyPoints)
-}
-
-func workItemDescription(projectNane string, title string, itemType string, description string) string {
-	template := workItemTemplate(projectNane)
+func workItemDescription(projectName string, title string, itemType string, description string) string {
+	template := workItemTemplate(projectName)
 	return fmt.Sprintf(`
 %s
 
@@ -577,16 +520,19 @@ resource "azuredevops_workitem" "test" {
 `, template, title, itemType, description)
 }
 
-func workItemAcceptanceCriteria(projectNane string, title string, itemType string, acceptanceCriteria string) string {
-	template := workItemTemplate(projectNane)
+func workItemAdditionalFields(projectName string, title string, storyPoints string, acceptanceCriteria string) string {
+	template := workItemTemplate(projectName)
 	return fmt.Sprintf(`
 %s
 
 resource "azuredevops_workitem" "test" {
-  title               = "%s"
-  project_id          = azuredevops_project.project.id
-  type                = "%s"
-  acceptance_criteria = "%s"
+  title      = "%s"
+  project_id = azuredevops_project.project.id
+  type       = "User Story"
+  additional_fields_json = jsonencode({
+    "Microsoft.VSTS.Scheduling.StoryPoints"    = %s
+    "Microsoft.VSTS.Common.AcceptanceCriteria" = "%s"
+  })
 }
-`, template, title, itemType, acceptanceCriteria)
+`, template, title, storyPoints, acceptanceCriteria)
 }
