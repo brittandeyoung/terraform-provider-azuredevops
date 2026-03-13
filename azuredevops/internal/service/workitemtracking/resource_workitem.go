@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/structure"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/webapi"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/workitemtracking"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/client"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/converter"
-	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/suppress"
 	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/internal/utils/tfhelper"
 )
 
@@ -97,7 +97,7 @@ func ResourceWorkItem() *schema.Resource {
 			"additional_fields_json": {
 				Type:             schema.TypeString,
 				Optional:         true,
-				DiffSuppressFunc: suppress.WhitespaceJsonDifference,
+				DiffSuppressFunc: structure.SuppressJsonDiff,
 				ConflictsWith:    []string{"custom_fields"},
 			},
 			"tags": {
@@ -161,9 +161,13 @@ func resourceWorkItemCreate(d *schema.ResourceData, m interface{}) error {
 	var operations []webapi.JsonPatchOperation
 	operations = expandSystemFields(d, operations, orgName)
 	operations = expandCustomFields(d, operations)
-	operations, err := expandAdditionalFields(d, operations)
-	if err != nil {
-		return err
+
+	if v, ok := d.Get("additional_fields_json").(string); ok && v != "" {
+		var additionalFields map[string]interface{}
+		if err := json.Unmarshal([]byte(v), &additionalFields); err != nil {
+			return fmt.Errorf("error parsing additional_fields_json: %s", err)
+		}
+		operations = expandAdditionalFields(d, additionalFields, webapi.OperationValues.Add, operations)
 	}
 
 	operations = expandTags(d, operations, webapi.OperationValues.Add)
@@ -240,9 +244,50 @@ func resourceWorkItemUpdate(d *schema.ResourceData, m interface{}) error {
 	var operations []webapi.JsonPatchOperation
 	operations = expandSystemFields(d, operations, orgName)
 	operations = expandCustomFields(d, operations)
-	operations, err = expandAdditionalFields(d, operations)
-	if err != nil {
-		return err
+
+	if d.HasChange("additional_fields_json") {
+		oFields, nFields := d.GetChange("additional_fields_json")
+
+		oFieldsString := oFields.(string)
+		nFieldsString := nFields.(string)
+		oldFieldsMap := make(map[string]interface{})
+		newFieldsMap := make(map[string]interface{})
+		removeFields := make(map[string]interface{})
+		updateFields := make(map[string]interface{})
+		addFields := make(map[string]interface{})
+
+		if oFieldsString != "" {
+			if err = json.Unmarshal([]byte(oFieldsString), &oldFieldsMap); err != nil {
+				return fmt.Errorf("error parsing old additional_fields_json: %s", err)
+			}
+		}
+		if nFieldsString != "" {
+			if err = json.Unmarshal([]byte(nFieldsString), &newFieldsMap); err != nil {
+				return fmt.Errorf("error parsing new additional_fields_json: %s", err)
+			}
+		}
+		// Identify fields for removal
+		for k, v := range oldFieldsMap {
+			if _, ok := newFieldsMap[k]; !ok {
+				removeFields[k] = v
+			}
+		}
+		// Identify fields for update
+		for k, v := range oldFieldsMap {
+			if _, ok := newFieldsMap[k]; ok {
+				updateFields[k] = v
+			}
+		}
+		// identify fields for add
+		for k, v := range newFieldsMap {
+			if _, ok := updateFields[k]; !ok {
+				addFields[k] = v
+			}
+		}
+
+		operations = expandAdditionalFields(d, removeFields, webapi.OperationValues.Remove, operations)
+		operations = expandAdditionalFields(d, updateFields, webapi.OperationValues.Replace, operations)
+		operations = expandAdditionalFields(d, addFields, webapi.OperationValues.Add, operations)
 	}
 
 	operations = expandTags(d, operations, webapi.OperationValues.Replace)
@@ -294,23 +339,21 @@ func expandCustomFields(d *schema.ResourceData, operations []webapi.JsonPatchOpe
 	return operations
 }
 
-func expandAdditionalFields(d *schema.ResourceData, operations []webapi.JsonPatchOperation) ([]webapi.JsonPatchOperation, error) {
-	if v, ok := d.Get("additional_fields_json").(string); ok && v != "" {
-		var additionalFields map[string]interface{}
-		if err := json.Unmarshal([]byte(v), &additionalFields); err != nil {
-			return nil, fmt.Errorf("error parsing additional_fields_json: %s", err)
+func expandAdditionalFields(d *schema.ResourceData, fields map[string]interface{}, op webapi.Operation, operations []webapi.JsonPatchOperation) []webapi.JsonPatchOperation {
+	for additionalFieldName, additionalFieldValue := range fields {
+		// Remove operations require empty Value
+		if op == webapi.OperationValues.Remove {
+			additionalFieldValue = nil
 		}
-		for additionalFieldName, additionalFieldValue := range additionalFields {
-			operations = append(operations, webapi.JsonPatchOperation{
-				Op:    &webapi.OperationValues.Add,
-				From:  nil,
-				Path:  converter.String("/fields/" + additionalFieldName),
-				Value: additionalFieldValue,
-			})
-		}
+		operations = append(operations, webapi.JsonPatchOperation{
+			Op:    &op,
+			From:  nil,
+			Path:  converter.String("/fields/" + additionalFieldName),
+			Value: additionalFieldValue,
+		})
 	}
 
-	return operations, nil
+	return operations
 }
 
 func expandSystemFields(d *schema.ResourceData, operations []webapi.JsonPatchOperation, organizationName string) []webapi.JsonPatchOperation {
@@ -383,9 +426,18 @@ func expandTags(d *schema.ResourceData, operations []webapi.JsonPatchOperation, 
 
 func flattenFields(d *schema.ResourceData, m *map[string]interface{}) error {
 	configMap := make(map[string]interface{})
+	stateMap := make(map[string]interface{})
+
 	if v, ok := d.Get("additional_fields_json").(string); ok && v != "" {
-		configJsonString := d.Get("additional_fields_json").(string)
-		err := json.Unmarshal([]byte(configJsonString), &configMap)
+		err := json.Unmarshal([]byte(v), &stateMap)
+		if err != nil {
+			return err
+		}
+	}
+
+	additionalFieldsJsonConfigString, additionalFieldsConfigExists := d.GetOkExists("additional_fields_json")
+	if additionalFieldsConfigExists && additionalFieldsJsonConfigString.(string) != "" {
+		err := json.Unmarshal([]byte(additionalFieldsJsonConfigString.(string)), &configMap)
 		if err != nil {
 			return err
 		}
@@ -397,6 +449,8 @@ func flattenFields(d *schema.ResourceData, m *map[string]interface{}) error {
 		if v, ok := systemFieldMapping[key]; ok {
 			d.Set(v, value)
 		} else if val, ok := configMap[key]; ok {
+			additionalFields[key] = val
+		} else if val, ok := stateMap[key]; ok {
 			additionalFields[key] = val
 		} else if strings.HasPrefix(key, customFieldsPrefix) {
 			customFields[strings.ReplaceAll(key, customFieldsPrefix, "")] = value

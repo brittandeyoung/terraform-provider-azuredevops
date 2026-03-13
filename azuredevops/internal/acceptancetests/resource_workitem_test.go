@@ -264,9 +264,11 @@ func TestAccWorkItem_additionalFieldsJson(t *testing.T) {
 	projectName := testutils.GenerateResourceName()
 	tfNode := "azuredevops_workitem.test"
 	storyPoints := 5.00
-	storyPointsUpdate := 3.2
+	risk := "3 - Low"
 	acceptanceCriteria := testutils.GenerateResourceName()
 	acceptanceCriteriaUpdate := testutils.GenerateResourceName()
+	jsonString := fmt.Sprintf("{\"Microsoft.VSTS.Scheduling.StoryPoints\": %f,\"Microsoft.VSTS.Common.AcceptanceCriteria\" =\"%s\"}", storyPoints, acceptanceCriteria)
+	jsonStringUpdateAddRemove := fmt.Sprintf("{\"Microsoft.VSTS.Common.Risk\": \"%s\",\"Microsoft.VSTS.Common.AcceptanceCriteria\" =\"%s\"}", risk, acceptanceCriteriaUpdate)
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:          func() { testutils.PreCheck(t, nil) },
@@ -274,7 +276,7 @@ func TestAccWorkItem_additionalFieldsJson(t *testing.T) {
 		CheckDestroy:      testutils.CheckProjectDestroyed,
 		Steps: []resource.TestStep{
 			{
-				Config: workItemAdditionalFields(projectName, workItemTitle, fmt.Sprintf("%f", storyPoints), acceptanceCriteria),
+				Config: workItemAdditionalFields(projectName, workItemTitle, jsonString),
 				Check: resource.ComposeTestCheckFunc(
 					testutils.CheckProjectExists(projectName),
 					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
@@ -301,7 +303,7 @@ func TestAccWorkItem_additionalFieldsJson(t *testing.T) {
 				),
 			},
 			{
-				Config: workItemAdditionalFields(projectName, workItemTitle, fmt.Sprintf("%f", storyPointsUpdate), acceptanceCriteriaUpdate),
+				Config: workItemAdditionalFields(projectName, workItemTitle, jsonStringUpdateAddRemove),
 				Check: resource.ComposeTestCheckFunc(
 					testutils.CheckProjectExists(projectName),
 					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
@@ -315,12 +317,16 @@ func TestAccWorkItem_additionalFieldsJson(t *testing.T) {
 							return err
 						}
 
-						if m["Microsoft.VSTS.Scheduling.StoryPoints"] != storyPointsUpdate {
-							return fmt.Errorf("expected Microsoft.VSTS.Scheduling.StoryPoints %f, got %f", storyPointsUpdate, m["Microsoft.VSTS.Scheduling.StoryPoints"])
+						if v, ok := m["Microsoft.VSTS.Scheduling.StoryPoints"]; ok {
+							return fmt.Errorf("expected Microsoft.VSTS.Scheduling.StoryPoints field to have been removed, but its was returned by the api, got %f", v)
 						}
 
 						if m["Microsoft.VSTS.Common.AcceptanceCriteria"] != acceptanceCriteriaUpdate {
 							return fmt.Errorf("expected Microsoft.VSTS.Common.AcceptanceCriteria %s, got %s", acceptanceCriteriaUpdate, m["Microsoft.VSTS.Common.AcceptanceCriteria"])
+						}
+
+						if m["Microsoft.VSTS.Common.Risk"] != risk {
+							return fmt.Errorf("expected Microsoft.VSTS.Common.Risk %s, got %s", risk, m["Microsoft.VSTS.Common.Risk"])
 						}
 
 						return nil
@@ -348,7 +354,7 @@ func TestAccWorkItem_description(t *testing.T) {
 	tfNode := "azuredevops_workitem.test"
 	description := testutils.GenerateResourceName()
 	descriptionUpdate := testutils.GenerateResourceName()
-	itemType := "User Story"
+	itemType := "Issue"
 	itemTypeAlternative := "Issue"
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -520,7 +526,7 @@ resource "azuredevops_workitem" "test" {
 `, template, title, itemType, description)
 }
 
-func workItemAdditionalFields(projectName string, title string, storyPoints string, acceptanceCriteria string) string {
+func workItemAdditionalFields(projectName string, title string, jsonString string) string {
 	template := workItemTemplate(projectName)
 	return fmt.Sprintf(`
 %s
@@ -529,10 +535,7 @@ resource "azuredevops_workitem" "test" {
   title      = "%s"
   project_id = azuredevops_project.project.id
   type       = "User Story"
-  additional_fields_json = jsonencode({
-    "Microsoft.VSTS.Scheduling.StoryPoints"    = %s
-    "Microsoft.VSTS.Common.AcceptanceCriteria" = "%s"
-  })
+  additional_fields_json = jsonencode(%s)
 }
-`, template, title, storyPoints, acceptanceCriteria)
+`, template, title, jsonString)
 }
