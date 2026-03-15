@@ -62,9 +62,8 @@ func ResourceWorkItem() *schema.Resource {
 				ValidateFunc: validation.StringIsNotWhiteSpace,
 			},
 			"description": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				ValidateFunc: validation.StringIsNotWhiteSpace,
+				Type:     schema.TypeString,
+				Optional: true,
 			},
 			"project_id": {
 				Type:         schema.TypeString,
@@ -266,18 +265,15 @@ func resourceWorkItemUpdate(d *schema.ResourceData, m interface{}) error {
 				return fmt.Errorf("error parsing new additional_fields_json: %s", err)
 			}
 		}
-		// Identify fields for removal
-		for k, v := range oldFieldsMap {
+		// Identify fields for removal or update
+		for k, _ := range oldFieldsMap {
 			if _, ok := newFieldsMap[k]; !ok {
-				removeFields[k] = v
+				removeFields[k] = ""
+			} else {
+				updateFields[k] = newFieldsMap[k]
 			}
 		}
-		// Identify fields for update
-		for k, v := range oldFieldsMap {
-			if _, ok := newFieldsMap[k]; ok {
-				updateFields[k] = v
-			}
-		}
+
 		// identify fields for add
 		for k, v := range newFieldsMap {
 			if _, ok := updateFields[k]; !ok {
@@ -358,7 +354,8 @@ func expandAdditionalFields(d *schema.ResourceData, fields map[string]interface{
 
 func expandSystemFields(d *schema.ResourceData, operations []webapi.JsonPatchOperation, organizationName string) []webapi.JsonPatchOperation {
 	for terraformProperty, apiName := range fieldMapping {
-		if terraformProperty == "parent_id" {
+		switch terraformProperty {
+		case "parent_id":
 			if d.HasChange("parent_id") {
 				oldParentId, newParentId := d.GetChange("parent_id")
 				if oldParentId.(int) > 0 {
@@ -388,7 +385,19 @@ func expandSystemFields(d *schema.ResourceData, operations []webapi.JsonPatchOpe
 					})
 				}
 			}
-		} else {
+		case "description":
+			// Always update with change even when empty
+			if d.HasChange(terraformProperty) {
+				_, nDescription := d.GetChange(terraformProperty)
+				nDescriptionString := nDescription.(string)
+				operations = append(operations, webapi.JsonPatchOperation{
+					Op:    &webapi.OperationValues.Add,
+					From:  nil,
+					Path:  converter.String("/fields/" + apiName),
+					Value: nDescriptionString,
+				})
+			}
+		default:
 			value := d.Get(terraformProperty).(string)
 			if value != "" {
 				operations = append(operations, webapi.JsonPatchOperation{
@@ -448,10 +457,10 @@ func flattenFields(d *schema.ResourceData, m *map[string]interface{}) error {
 	for key, value := range *m {
 		if v, ok := systemFieldMapping[key]; ok {
 			d.Set(v, value)
-		} else if val, ok := configMap[key]; ok {
-			additionalFields[key] = val
-		} else if val, ok := stateMap[key]; ok {
-			additionalFields[key] = val
+		} else if _, ok := configMap[key]; ok {
+			additionalFields[key] = value
+		} else if _, ok := stateMap[key]; ok {
+			additionalFields[key] = value
 		} else if strings.HasPrefix(key, customFieldsPrefix) {
 			customFields[strings.ReplaceAll(key, customFieldsPrefix, "")] = value
 		} else if "System.Tags" == key {

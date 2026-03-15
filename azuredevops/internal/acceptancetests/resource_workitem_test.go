@@ -28,6 +28,7 @@ func TestAccWorkItem_basic(t *testing.T) {
 					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
 					resource.TestCheckResourceAttr(tfNode, "type", "Issue"),
 					resource.TestCheckResourceAttr(tfNode, "state", "Active"),
+					resource.TestCheckNoResourceAttr(tfNode, "description"),
 				),
 			},
 			{
@@ -354,14 +355,29 @@ func TestAccWorkItem_description(t *testing.T) {
 	tfNode := "azuredevops_workitem.test"
 	description := testutils.GenerateResourceName()
 	descriptionUpdate := testutils.GenerateResourceName()
-	itemType := "Issue"
-	itemTypeAlternative := "Issue"
+	descriptionEmpty := ""
+	itemType := "User Story"
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:          func() { testutils.PreCheck(t, nil) },
 		ProviderFactories: testutils.GetProviderFactories(),
 		CheckDestroy:      testutils.CheckProjectDestroyed,
 		Steps: []resource.TestStep{
+			// Start with no description
+			{
+				Config: workItemDescriptionNone(projectName, workItemTitle, itemType),
+				Check: resource.ComposeTestCheckFunc(
+					testutils.CheckProjectExists(projectName),
+					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
+					resource.TestCheckResourceAttrSet(tfNode, "url"),
+					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
+					resource.TestCheckResourceAttr(tfNode, "type", itemType),
+					resource.TestCheckResourceAttr(tfNode, "state", "New"),
+					// should not have a description
+					resource.TestCheckNoResourceAttr(tfNode, "description"),
+				),
+			},
+			// Now add a description
 			{
 				Config: workItemDescription(projectName, workItemTitle, itemType, description),
 				Check: resource.ComposeTestCheckFunc(
@@ -374,6 +390,7 @@ func TestAccWorkItem_description(t *testing.T) {
 					resource.TestCheckResourceAttr(tfNode, "description", description),
 				),
 			},
+			// Update the description
 			{
 				Config: workItemDescription(projectName, workItemTitle, itemType, descriptionUpdate),
 				Check: resource.ComposeTestCheckFunc(
@@ -386,23 +403,24 @@ func TestAccWorkItem_description(t *testing.T) {
 					resource.TestCheckResourceAttr(tfNode, "description", descriptionUpdate),
 				),
 			},
+			// Remove the description
+			{
+				Config: workItemDescription(projectName, workItemTitle, itemType, descriptionEmpty),
+				Check: resource.ComposeTestCheckFunc(
+					testutils.CheckProjectExists(projectName),
+					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
+					resource.TestCheckResourceAttrSet(tfNode, "url"),
+					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
+					resource.TestCheckResourceAttr(tfNode, "type", itemType),
+					resource.TestCheckResourceAttr(tfNode, "state", "New"),
+					resource.TestCheckResourceAttr(tfNode, "description", ""),
+				),
+			},
 			{
 				ResourceName:      tfNode,
 				ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateIdFunc: testutils.ComputeProjectQualifiedResourceImportID(tfNode),
-			},
-			{
-				Config: workItemDescription(projectName, workItemTitle, itemTypeAlternative, descriptionUpdate),
-				Check: resource.ComposeTestCheckFunc(
-					testutils.CheckProjectExists(projectName),
-					resource.TestCheckResourceAttr(tfNode, "title", workItemTitle),
-					resource.TestCheckResourceAttrSet(tfNode, "project_id"),
-					resource.TestCheckResourceAttrSet(tfNode, "url"),
-					resource.TestCheckResourceAttr(tfNode, "type", itemTypeAlternative),
-					resource.TestCheckResourceAttr(tfNode, "state", "Active"),
-					resource.TestCheckResourceAttr(tfNode, "description", descriptionUpdate),
-				),
 			},
 		},
 	})
@@ -524,6 +542,19 @@ resource "azuredevops_workitem" "test" {
   description = "%s"
 }
 `, template, title, itemType, description)
+}
+
+func workItemDescriptionNone(projectName string, title string, itemType string) string {
+	template := workItemTemplate(projectName)
+	return fmt.Sprintf(`
+%s
+
+resource "azuredevops_workitem" "test" {
+  title       = "%s"
+  project_id  = azuredevops_project.project.id
+  type        = "%s"
+}
+`, template, title, itemType)
 }
 
 func workItemAdditionalFields(projectName string, title string, jsonString string) string {
